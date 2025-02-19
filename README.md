@@ -12,16 +12,6 @@ This is the official implementation of Pix2Seq in Tensorflow 2 with efficient TP
   An illustration of Pix2Seq for object detection (from <a href="https://ai.googleblog.com/2022/04/pix2seq-new-language-interface-for.html">our Google AI blog post</a>).
 </div>
 
-## (<span_style="color:red">NEW!</span>)_FitTransformer_(FIT) 
-
-We added (official) implementations of [FitTransformer (FIT)](https://arxiv.org/abs/2305.12689) (as an encoder, a diffusion decoder, or an autoregressive decoder) see architectures/transformers.py.
-
-## (<span_style="color:red">NEW!</span>)_Diffusion_models
-
-We added (official) implementations of diffusion models (such as Bit Diffusion, RIN, see references below) built on top of the original Pix2Seq codebase and they can be found in tasks/, models/, and architectures/.
-
-Please note that we have not yet added proper documentations on training these models.
-
 ## Models
 <a href="https://colab.research.google.com/github/google-research/pix2seq/blob/master/colabs/pix2seq_inference_object_detection.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
 
