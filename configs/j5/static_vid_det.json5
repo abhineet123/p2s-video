@@ -1,0 +1,13 @@
+{
+  "task": {
+    "name": "static_video_detection",
+  },
+  "tasks": [
+    {
+      "name": "static_video_detection",
+    }
+  ],
+  "%mode%": {
+	"save_suffix": ["static",],
+	},
+}

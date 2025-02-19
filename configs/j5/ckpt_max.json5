@@ -1,0 +1,5 @@
+{
+  "train": {
+	"keep_checkpoint_max": %0%,
+  }
+}

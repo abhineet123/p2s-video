@@ -1,0 +1,10 @@
+{
+  "model": {
+	len_vocab_shift: 100,
+	class_vocab_shift: 100,
+  },
+  "dataset": {
+    length_as_class: 1,
+    time_as_class: 1,
+  }
+}

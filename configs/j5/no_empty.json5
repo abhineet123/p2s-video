@@ -1,0 +1,11 @@
+{
+	eval: {
+		"save_suffix": ["non_empty",],
+	},
+	"dataset": {	
+		empty_seg_prob: 0,
+		"eval": {
+			filter: 1,
+		},
+	}
+}

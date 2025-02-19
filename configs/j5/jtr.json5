@@ -1,0 +1,15 @@
+{
+  "dataset": {
+	transforms:{
+		scale_jitter: 1,
+		fixed_crop: 1,
+		scale_jitter: %%0%%,
+		fixed_crop: %%0%%,
+
+	},
+  },
+  "train": {
+    "save_suffix": ['jtr',],
+  }
+
+  }

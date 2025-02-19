@@ -1,0 +1,7 @@
+{
+  "resnet_replace": ["swin_%0%", ],
+  "model": {
+    "resnet_variant": "swin",
+    "swin_variant": "%0%",
+  }
+}

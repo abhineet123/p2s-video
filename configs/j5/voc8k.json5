@@ -1,0 +1,9 @@
+{
+  "model": {
+	defer_vocab: 1,
+	vocab_size: 8000,
+  },
+"%mode%": {
+	"save_suffix": ["voc8k",],
+  },
+}

@@ -1,0 +1,17 @@
+{
+  "dataset": {
+	root_dir: "datasets/DETRAC/Images",
+    %mode%_name: "detrac",
+
+	%mode%_suffix: "%0%",
+	%mode%_suffix: "%0%-seq-%%1%%",
+	%mode%_suffix: "%0%-%1%-seq-%%2%%",
+
+	transforms:{
+		scale_jitter: 0,
+		fixed_crop: 0,
+		jitter_scale_min: 0.3,
+		jitter_scale_max: 2.0,
+	},
+  }
+}

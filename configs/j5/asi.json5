@@ -1,0 +1,6 @@
+{
+  "eval": {
+	add_stride_info: 1,
+	add_stride_info: %%0%%,
+  },
+}

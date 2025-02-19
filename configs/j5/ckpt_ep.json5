@@ -1,0 +1,5 @@
+{
+  "train": {
+	"checkpoint_epochs": %0%,
+  }
+}

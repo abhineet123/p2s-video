@@ -1,0 +1,9 @@
+{
+"debug": %0%,
+"dyn_ram": %0%,
+"eager": %0%,
+"profile": %0%,
+"train": {
+	"check_ckpt": %0%,
+},
+}

@@ -1,0 +1,7 @@
+{
+  "train": {
+	freeze_decoder: 1,
+    "save_suffix": ['fdec',],
+  },
+
+  }

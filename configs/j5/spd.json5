@@ -1,0 +1,7 @@
+{
+  "resnet_replace": ["spd_%0%", ],
+  "model": {
+    "swin_patch_dim": %0%,
+    "pos_encoding": "learned",
+  },
+}

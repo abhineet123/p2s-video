@@ -1,0 +1,7 @@
+{
+  "train": {
+	freeze_backbone: 1,
+    "save_suffix": ['fbb',],
+  },
+
+  }

@@ -1,0 +1,12 @@
+{
+  "mode": "train",
+  "train": {
+	keep_checkpoint_max: 2,
+	"save_suffix": ["%%0%%",],
+	},
+	"eval": {
+		"pt": 0,
+	}, 
+    epochs: 2000,
+
+}

@@ -1,0 +1,8 @@
+{
+model: {
+	max_seq_len: %0%,
+	},
+train: {
+    save_suffix: ['msl_%0%',],
+  }
+}

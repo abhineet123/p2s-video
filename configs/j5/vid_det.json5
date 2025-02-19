@@ -1,0 +1,10 @@
+{
+  "task": {
+    "name": "video_detection",
+  },
+  "tasks": [
+    {
+      "name": "video_detection",
+    }
+  ],
+}

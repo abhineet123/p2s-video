@@ -1,0 +1,7 @@
+{
+  "mode": "eval",
+  "dist": 0,
+  "eval": {
+	"save_suffix": ["%%0%%",],	
+	}  
+}

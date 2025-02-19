@@ -1,0 +1,7 @@
+{
+  "eval": {
+	"min_score_thresh": %0%,	
+	"save_suffix": ["conf_%0%",],	
+
+	}  
+}

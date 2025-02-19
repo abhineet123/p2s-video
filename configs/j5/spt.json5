@@ -1,0 +1,8 @@
+{
+  "resnet_replace": ["pt",],
+  "resnet_replace": ["pt","%%0%%",],
+  "model": {
+    "swin_pt": 1,
+    "swin_pt": %%0%%,
+  },
+}

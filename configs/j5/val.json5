@@ -1,0 +1,7 @@
+{
+  "mode": "eval",
+  "train": {
+	"val_epochs": 1,	
+	"val_epochs": %%0%%,	
+	}  
+}

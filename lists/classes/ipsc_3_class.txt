@@ -1,0 +1,3 @@
+ips	green
+dif	red
+cell	white

@@ -1,0 +1,16 @@
+tensorflow==2.10
+ml-collections
+matplotlib
+tensorflow-datasets==4.8.3
+tensorflow-addons
+tensorflow-text
+tensorflow_gan
+pycocotools
+scikit-image
+einops
+json5
+netifaces
+pandas
+paramparse
+opencv-python
+compress_json

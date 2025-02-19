@@ -1,0 +1,6 @@
+{
+  dataset: {
+	%mode%_start_frame_id: %0%,
+	%mode%_end_frame_id: %1%,
+	}
+}

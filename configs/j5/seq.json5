@@ -1,0 +1,8 @@
+{
+  dataset: {
+	%mode%_start_seq_id: %0%,
+	%mode%_end_seq_id: %0%,
+	
+	%mode%_end_seq_id: %%1%%,
+	}
+}

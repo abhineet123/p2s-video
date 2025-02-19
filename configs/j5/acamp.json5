@@ -1,0 +1,13 @@
+{
+  "dataset": {
+	root_dir: "datasets/acamp/acamp20k",
+    %mode%_name: "%0%",
+
+	transforms:{
+		scale_jitter: 0,
+		fixed_crop: 0,
+		jitter_scale_min: 0.3,
+		jitter_scale_max: 2.0,
+	},
+  }
+}

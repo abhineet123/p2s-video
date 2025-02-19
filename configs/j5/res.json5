@@ -1,0 +1,9 @@
+{
+  dataset: {
+    target_size: [%0%,%0%],
+  },
+  train: {
+    save_suffix: ["res_%0%",],
+  },
+}
+

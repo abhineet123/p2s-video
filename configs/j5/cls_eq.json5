@@ -1,0 +1,8 @@
+{
+"%mode%": {
+	"save_suffix": ["cls_eq",],
+  },
+"task": {
+    class_equal_weight: 1,
+  },
+}

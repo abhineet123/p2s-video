@@ -1,0 +1,21 @@
+{
+  "task": {
+    "name": "video_segmentation",
+  },
+  "tasks": [
+    {
+      "name": "video_segmentation",
+    }
+  ],
+  "model": {
+	defer_vocab: 1,
+	vocab_size: 8000,
+	
+	defer_seq: 1,
+	max_seq_len: 1024,
+  },
+  "dataset": {
+	"%mode%_name": "%mode%",
+    "%mode%_cfg": "%*%",
+  },
+}

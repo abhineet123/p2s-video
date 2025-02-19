@@ -1,0 +1,7 @@
+{
+  "train": {
+	freeze_encoder: 1,
+    "save_suffix": ['fenc',],
+  },
+
+  }

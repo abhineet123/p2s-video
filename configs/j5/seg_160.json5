@@ -1,0 +1,11 @@
+{
+  "model": {
+	defer_vocab: 1,
+	vocab_size: 28000,
+	max_seq_len: 512,
+  },
+  "dataset": {
+	"%mode%_name": "%mode%",
+    "%mode%_cfg": "%*%",
+  }
+}

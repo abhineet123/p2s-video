@@ -1,0 +1,10 @@
+{
+	"train": {
+		"save_suffix": ["pos3d",],
+	},
+  "model": [
+    {		
+      "pos_encoding": "learned_3d",
+    }
+  ],
+}

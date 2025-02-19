@@ -1,0 +1,9 @@
+{
+  "model": {
+    "late_fusion": 1,
+    "pos_encoding": "learned_3d",
+  },
+  "train": {
+    "save_suffix": ['lfn',],
+  }
+}

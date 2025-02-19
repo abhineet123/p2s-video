@@ -1,0 +1,6 @@
+{
+  "train": {
+	pt: 0,
+	"save_suffix": ['scratch',],
+	},
+}

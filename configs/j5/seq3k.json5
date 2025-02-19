@@ -1,0 +1,9 @@
+{
+"%mode%": {
+	"save_suffix": ["seq3k",],
+  },
+  "model": {
+	defer_seq: 1,
+	max_seq_len: 3072,
+  },
+}

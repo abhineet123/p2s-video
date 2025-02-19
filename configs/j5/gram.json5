@@ -1,0 +1,17 @@
+{
+  "dataset": {
+	root_dir: "datasets/GRAM/Images",
+    %mode%_name: "gram_only",
+	
+    %mode%_name: "gram_only-%%1%%",
+
+	%mode%_suffix: "seq-%0%",
+
+	transforms:{
+		scale_jitter: 0,
+		fixed_crop: 0,
+		jitter_scale_min: 0.3,
+		jitter_scale_max: 2.0,
+	},
+  }
+}
