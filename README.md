@@ -1,6 +1,10 @@
 <!-- No Heading Fix -->
 
 # P2S-Video: Extension of Pix2Seq for Video Detection and Segmentation
+This is the official implementation of my extension of the Pix2Seq language modelling framework for video object detection and panoptic segmentation in images and videos by autoregression
+- [phd thesis](docs/p2s_vid_phd_thesis.pdf)
+- [video detection paper](https://ieeexplore.ieee.org/document/11115031) [[pdf]](docs/p2s_vid_det_paper.pdf)
+- panoptic segmentation paper (coming soon)
 
 This is the official implementation of Pix2Seq in Tensorflow 2 with efficient TPUs/GPUs support.
 **The original Pix2Seq code aims to be a general framework that turns RGB pixels into semantically meaningful sequences**. We now extend it to be a generic codebase, with task-centric organization that supports different tasks as well as their combination, using generative modeling (**both autoregressive and diffusion models**, see below).
