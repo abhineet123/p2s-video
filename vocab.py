@@ -22,6 +22,11 @@
 # Text tokens: [text_vocab_shift, ...].
 
 PADDING_TOKEN = 0
+# need MHD vocab shift to be as small as possible to
+# minimize the size of the vocabulary for each decoder
+TASK_MHD_SEM_SEG = 1
+# tokens 1, 2, 3, 4 are for x, y, l, c token types
+MHD_VOCAB_SHIFT = 5
 
 # 10-29 reserved for task id.
 TASK_OBJ_DET = 10
@@ -35,7 +40,6 @@ TASK_SEM_SEG = 21
 TASK_VID_SEG = 22
 TASK_STATIC_VID_DET = 23
 TASK_STATIC_VID_SEG = 24
-
 
 FAKE_CLASS_TOKEN = 30
 FAKE_TEXT_TOKEN = 30  # Same token to represent fake class and fake text.

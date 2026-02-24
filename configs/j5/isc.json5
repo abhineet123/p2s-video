@@ -1,0 +1,6 @@
+{
+  "eval": {
+	remote: 'isc',
+	sleep_eval: %%0%%,
+	},
+}

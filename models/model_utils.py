@@ -375,7 +375,7 @@ def get_loss(logits, label_seq, loss_type):
 def get_val_metrics(y_true, y_pred_logits, y_mask):
     y_true_m = tf.boolean_mask(y_true, y_mask)
 
-    y_pred = tf.argmax(y_pred_logits, axis=2)
+    y_pred = tf.cast(tf.argmax(y_pred_logits, axis=2), y_true.dtype)
     y_pred_m = tf.boolean_mask(y_pred, y_mask)
 
     """Don't care about output tokens corresponding to GT tokens marked as padding"""
@@ -521,6 +521,10 @@ def get_params_counts(model, level=0):
 
     for module_name in trainable_modules:
         module = getattr(model, module_name)
+        # if isinstance(module, (list, tuple)):
+        #     for k in module:
+        #         get_params_counts(k, level=level)
+        #     return
         try:
             trainable_weights = module.trainable_weights
         except AttributeError as e:

@@ -58,7 +58,7 @@ def load_from_model(cfg, model_dir, cmd_cfg, pt=False):
     pt_cfg_filepath = os.path.join(model_dir, 'config.json')
 
     if cfg.eval.remote and not os.path.isfile(pt_cfg_filepath):
-        utils.get_remote_config(model_dir, cfg.eval.info_file, cfg.eval.remote, cfg.eval.proxy)
+        utils.get_remote_config(model_dir, cfg.eval.remote, cfg.eval.proxy)
 
     assert os.path.isfile(pt_cfg_filepath), f"non-existent model cfg json: {pt_cfg_filepath}"
 
@@ -84,7 +84,7 @@ def load_from_model(cfg, model_dir, cmd_cfg, pt=False):
     """
     hack to deal with type mismatches between variables in the config py files and those in the 
     config json files accompanying the pretrained models
-    ConfigDict does not allow type override so type changes must be done in ordinary dict
+    ConfigDict does not allow type override, so type changes must be done in ordinary dict
     """
     image_size = cfg_from_model['model']['image_size']
     if isinstance(image_size, int):
@@ -111,6 +111,7 @@ def load_from_model(cfg, model_dir, cmd_cfg, pt=False):
         pass
 
     # task_config_hack_old(cfg)
+    return
 
 
 def expand_list(val):
@@ -205,7 +206,7 @@ def load_from_json5(json_list, json_root):
         for line_id, json_line in enumerate(json_lines):
             is_valid = True
             if any(f'%%{var_id}%%' in json_line for var_id in range(MAX_JSON_VARS)):
-                """remove %% for subsequent comparison to work"""
+                """remove %% for subsequent comparison to NAMED_JSON_VARS"""
                 json_line = json_line.replace('%%', '$$')
                 is_valid = False
             if any(f'%{var_id}%' in json_line for var_id in range(MAX_JSON_VARS)):
@@ -298,7 +299,7 @@ def load(FLAGS):
 
     if cfg.dataset.name.startswith('ipsc'):
         from configs.dataset_configs import ipsc_post_process
-        ipsc_post_process(cfg.dataset, cfg.task,  cfg.model, cfg.training)
+        ipsc_post_process(cfg.dataset, cfg.task, cfg.model, cfg.training)
 
     if not cfg.model_dir:
         """construct model_dir name from params"""
@@ -310,6 +311,11 @@ def load(FLAGS):
             cfg.model_dir = cfg.pretrained.replace('pretrained', model_root_dir)
         else:
             model_dir_name = f'{cfg.dataset.train_name}'
+            if cfg.train.db_prefix:
+                print(f'train.db_prefix: {cfg.train.db_prefix}')
+                db_prefix = '-'.join(cfg.train.db_prefix)
+                model_dir_name = f'{db_prefix}-{model_dir_name}'
+
             if cfg.pretrained:
                 pretrained_name = os.path.basename(cfg.pretrained)
                 resnet_replace = cfg.resnet_replace
@@ -317,9 +323,8 @@ def load(FLAGS):
                     if isinstance(resnet_replace, (list, tuple)):
                         resnet_replace = '_'.join(resnet_replace)
                     pretrained_name = pretrained_name.replace('resnet', resnet_replace)
-
                 model_dir_name = f'{pretrained_name}_{model_dir_name}'
-
+                
             if cfg.train.save_suffix:
                 print(f'train.save_suffix: {cfg.train.save_suffix}')
                 save_suffix = '-'.join(cfg.train.save_suffix)
@@ -350,7 +355,6 @@ def load(FLAGS):
     #     k: getattr(FLAGS, k) for k in dir(FLAGS) if k.startswith('cfg.')
     # }
 
-
     if cfg.task.name == 'object_detection':
         from configs.config_det_ipsc import update_task_config
         update_task_config(cfg)
@@ -362,6 +366,9 @@ def load(FLAGS):
         update_task_config(cfg)
     elif cfg.task.name == 'semantic_segmentation':
         from configs.config_seg import update_task_config
+        update_task_config(cfg)
+    elif cfg.task.name == 'mhd_semantic_segmentation':
+        from configs.config_seg_mhd import update_task_config
         update_task_config(cfg)
     elif cfg.task.name == 'video_segmentation':
         from configs.config_video_seg import update_task_config

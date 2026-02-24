@@ -1,0 +1,34 @@
+background	0_0_0
+ego vehicle	0_0_0
+rectification border	0_0_0
+out of roi	0_0_0
+static	0_0_0
+dynamic	111_74_0
+ground	81_0_81
+road	128_64_128
+sidewalk	244_35_232
+parking	250_170_160
+rail track	230_150_140
+building	70_70_70
+wall	102_102_156
+fence	190_153_153
+guard rail	180_165_180
+bridge	150_100_100
+tunnel	150_120_90
+pole	153_153_153
+polegroup	153_153_153
+traffic light	250_170_30
+traffic sign	220_220_0
+vegetation	107_142_35
+terrain	152_251_152
+sky	70_130_180
+person	220_20_60
+rider	255_0_0
+car	0_0_142
+truck	0_0_70
+bus	0_60_100
+caravan	0_0_90
+trailer	0_0_110
+train	0_80_100
+motorcycle	0_0_230
+bicycle	119_11_32

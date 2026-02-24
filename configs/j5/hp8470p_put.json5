@@ -1,0 +1,6 @@
+{
+  "eval": {
+	remote_put: 'hp8470p',
+	sleep_eval: %%0%%,
+	},
+}

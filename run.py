@@ -41,12 +41,26 @@ EagerTensor.to_numpy = to_numpy
 # temp2 = tf.random.uniform((5, 5))
 # temp3 = tf.random.uniform((5, 5), name='temp3')
 
+def resolve_dns(dns_name):
+    import socket
+    try:
+        int(dns_name.split('.')[0])
+    except ValueError:
+        ip_addr = socket.gethostbyname_ex(dns_name)[2][0]
+    else:
+        ip_addr = dns_name
+    return ip_addr
 
 def get_worker_id(tf_config):
     worker_ip_addresses = [node.split(':')[0] for node in tf_config['cluster']['worker']]
 
     assert len(worker_ip_addresses) == len(set(worker_ip_addresses)), \
         "worker ID resolution cannot work with duplicate IP addresses"
+
+    print(f'worker_ip_addresses: {worker_ip_addresses}')
+    worker_ip_addresses = [resolve_dns(k) for k in worker_ip_addresses]
+    print(f'worker_ip_addresses: {worker_ip_addresses}')
+
     import netifaces as ni
 
     interfaces = ni.interfaces()
@@ -175,6 +189,7 @@ def main(unused_argv):
     from data import transforms, video_transforms  # pylint: disable=unused-import
     from metrics import coco_metrics  # pylint: disable=unused-import
     from models import ar_model  # pylint: disable=unused-import
+    from models import mhd_ar_model  # pylint: disable=unused-import
     from models import video_ar_model  # py6lint: disable=unused-import
     from models import image_ar_model  # pylint: disable=unused-import
     from models import image_diffusion_model  # pylint: disable=unused-import
@@ -192,6 +207,7 @@ def main(unused_argv):
     from tasks import video_detection
     from tasks import static_video_detection
     from tasks import semantic_segmentation
+    from tasks import mhd_semantic_segmentation
     from tasks import video_segmentation
     from tasks import static_video_segmentation
     # pylint: enable=unused-import
@@ -295,7 +311,6 @@ def main(unused_argv):
         # print(f'cfg.eval.sleep: {cfg.eval.sleep}')
 
         start_t = time.time()
-        is_remote = False
 
         if cfg.eval.ckpt_iter:
             print(f'running local inference on ckpt {cfg.eval.ckpt_iter}')
@@ -306,11 +321,15 @@ def main(unused_argv):
         if cfg.eval.defer:
             print(f'only transferring checkpoints now and deferring evaluation runs for later')
 
+        if cfg.eval.remote and cfg.eval.ckpt_iter:
+            cfg.eval.run_existing = 0
+
         while True:
             new_ckpt = None
+            is_remote = False
 
-            if cfg.eval.run_existing and not is_remote:
-                create_copy = cfg.eval.ckpt_iter == 0 and not cfg.eval.remote
+            if cfg.eval.run_existing:
+                create_copy = cfg.eval.ckpt_copy and cfg.eval.ckpt_iter == 0 and not cfg.eval.remote
                 new_ckpt = utils.get_local_ckpt(checkpoint_dir, evaluated_ckpts,
                                                 cfg.eval.ckpt_iter, create_copy)
                 if new_ckpt is not None:
@@ -325,8 +344,9 @@ def main(unused_argv):
 
             if new_ckpt is None:
                 if cfg.eval.remote:
-                    new_ckpt = utils.get_remote_ckpt(checkpoint_dir, cfg.eval.info_file,
-                                                     cfg.eval.remote, cfg.eval.proxy)
+                    new_ckpt = utils.get_remote_ckpt(
+                        checkpoint_dir, cfg.eval.remote, cfg.eval.proxy, cfg.eval.ckpt_iter,
+                        oldest_ckpt_first=cfg.eval.oldest_ckpt_first)
                     if new_ckpt is not None:
                         print(f'found remote ckpt: {new_ckpt}')
                         is_remote = True
@@ -346,7 +366,11 @@ def main(unused_argv):
 
             start_t = time.time()
 
-            if cfg.eval.defer:
+            if cfg.eval.remote_put:
+                utils.put_remote_ckpt(
+                    new_ckpt, checkpoint_dir, cfg.eval.remote_put,
+                    cfg.eval.proxy_put, tb=True)
+            elif cfg.eval.defer:
                 print(f'deferring ckpt eval for later: {new_ckpt}')
             else:
                 out_dir = eval.run(cfg, train_datasets[0], tasks[0], eval_steps, new_ckpt_from_tf, strategy,
@@ -358,7 +382,7 @@ def main(unused_argv):
             if cfg.eval.ckpt_iter:
                 break
 
-            if is_remote:
+            if is_remote or cfg.eval.remote_put:
                 utils.sleep_with_pbar(hrs=cfg.eval.sleep_eval, start=start_t)
 
 

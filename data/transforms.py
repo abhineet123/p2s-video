@@ -17,6 +17,7 @@
 
 import abc
 import copy
+import math
 import numpy as np
 
 import ml_collections
@@ -24,6 +25,7 @@ import registry
 import utils
 from data import data_utils
 import tensorflow as tf
+import tensorflow_addons as tfa
 
 TransformRegistry = registry.Registry()
 
@@ -115,6 +117,9 @@ class ResizeImage(Transform):
 
         for k, resize_method, antialias, p_ar in zip(
                 self.config.inputs, resize_methods, antialias_list, preserve_ar):
+            if self.config.debug:
+                example[f'resize/{k}'] = example[k]
+
             if k == 'mask':
                 example[k] = tf.image.resize(
                     example[k], self.config.target_size, method="nearest",
@@ -123,6 +128,45 @@ class ResizeImage(Transform):
                 example[k] = tf.image.resize(
                     example[k], self.config.target_size, method=resize_method,
                     antialias=antialias, preserve_aspect_ratio=p_ar)
+        return example
+
+
+@TransformRegistry.register('random_scale')
+class RandomScale(Transform):
+    def process_example(self, example: dict[str, tf.Tensor]):
+        example = copy.copy(example)
+        # target_height, target_width = self.config.target_size
+        min_scale, max_scale = self.config.min_scale, self.config.max_scale
+
+        input_size = tf.cast(tf.shape(example[self.config.inputs[0]])[:2],
+                             tf.float32)
+        scale = tf.random.uniform([], min_scale, max_scale)
+        scaled_size = tf.multiply(input_size, scale)
+
+        # scaled_height, scaled_width = scaled_size
+        # assert scaled_height >= target_height and scaled_width >= target_width, \
+        #     "scaled_size must be >= target_size"
+
+        if self.config.debug:
+            example['random_scale/scale'] = scale
+            example['random_scale/scaled_size'] = scaled_size
+
+        num_inputs = len(self.config.inputs)
+        resize_methods = self.config.get('resize_method', ['bilinear'] * num_inputs)
+        antialias_list = self.config.get('antialias', [False] * num_inputs)
+        for k, resize_method, antialias in zip(self.config.inputs,
+                                               resize_methods, antialias_list):
+            if self.config.debug:
+                example[f'random_scale/{k}'] = example[k]
+
+            if k == 'mask':
+                example[k] = tf.image.resize(
+                    example[k], tf.cast(scaled_size, tf.int32),
+                    method="nearest", antialias=False)
+            else:
+                example[k] = tf.image.resize(
+                    example[k], tf.cast(scaled_size, tf.int32),
+                    method=resize_method, antialias=antialias)
         return example
 
 
@@ -156,17 +200,18 @@ class ScaleJitter(Transform):
         )
         scaled_size = tf.cast(tf.multiply(input_size, scale), tf.int32)
 
-        example['scale_jitter/scale'] = scale
-        example['scale_jitter/scaled_size'] = scaled_size
+        if self.config.debug:
+            example['scale_jitter/scale'] = scale
+            example['scale_jitter/scaled_size'] = scaled_size
 
         num_inputs = len(self.config.inputs)
         resize_methods = self.config.get('resize_method', ['bilinear'] * num_inputs)
         antialias_list = self.config.get('antialias', [False] * num_inputs)
         for k, resize_method, antialias in zip(self.config.inputs,
                                                resize_methods, antialias_list):
-            example[k] = tf.image.resize(
-                example[k], tf.cast(scaled_size, tf.int32),
-                method=resize_method, antialias=antialias)
+            if self.config.debug:
+                example[f'scale_jitter/{k}'] = example[k]
+
             if k == 'mask':
                 example[k] = tf.image.resize(
                     example[k], tf.cast(scaled_size, tf.int32),
@@ -204,16 +249,48 @@ class FixedSizeCrop(Transform):
                   tf.minimum(output_size[0], input_size[0] - offset[0]),
                   tf.minimum(output_size[1], input_size[1] - offset[1]))
 
-        example['fixed_size_crop/input_size'] = input_size
-        example['fixed_size_crop/output_size'] = output_size
-        example['fixed_size_crop/max_offset'] = max_offset
-        example['fixed_size_crop/offset'] = offset
-        example['fixed_size_crop/region'] = region
+        # example['fixed_size_crop/input_size'] = input_size
+        # example['fixed_size_crop/output_size'] = output_size
+        # example['fixed_size_crop/max_offset'] = max_offset
+        # example['fixed_size_crop/offset'] = offset
+        # example['fixed_size_crop/region'] = region
 
         object_coordinate_keys = self.config.get('object_coordinate_keys', [])
+        if self.config.debug:
+            for k in self.config.inputs:
+                example[f'fixed_size_crop/{k}'] = example[k]
 
-        return data_utils.crop(example, region, self.config.inputs,
-                               object_coordinate_keys)
+        example = data_utils.crop(example, region, self.config.inputs,
+                                  object_coordinate_keys)
+
+        return example
+
+
+@TransformRegistry.register('random_rotate')
+class RandomRotate(Transform):
+    """
+    random rotation
+
+    Fields in config:
+      inputs: names of applicable fields in the example.
+    """
+
+    def process_example(self, example: dict[str, tf.Tensor]):
+        example = copy.copy(example)
+        inputs = {k: example[k] for k in self.config.inputs}
+
+        with tf.name_scope('RandomRotate'):
+            rotate_angle = tf.random.uniform([]) * math.pi * 2
+            inputs = {k: tfa.image.rotate(v, rotate_angle, interpolation='nearest' if k == 'mask' else 'bilinear')
+                      for k, v in inputs.items()}
+        example.update(inputs)
+
+        if self.config.debug:
+            example['random_rotate/rotate_angle'] = rotate_angle
+            for k in self.config.inputs:
+                example[f'random_rotate/{k}'] = example[k]
+
+        return example
 
 
 @TransformRegistry.register('random_horizontal_flip')
@@ -236,6 +313,12 @@ class RandomHorizontalFlip(Transform):
 
         with tf.name_scope('RandomHorizontalFlip'):
             coin_flip = tf.random.uniform([]) > 0.5
+
+            if self.config.debug:
+                example['random_horizontal_flip/coin_flip'] = coin_flip
+                for k in self.config.inputs:
+                    example[f'random_horizontal_flip/{k}'] = example[k]
+
             if coin_flip:
                 inputs = {k: tf.image.flip_left_right(v) for k, v in inputs.items()}
                 boxes = {k: data_utils.flip_boxes_left_right(v)
@@ -272,6 +355,12 @@ class RandomVertricalFlip(Transform):
 
         with tf.name_scope('RandomVertricalFlip'):
             coin_flip = tf.random.uniform([]) > 0.5
+
+            if self.config.debug:
+                example['random_vertical_flip/coin_flip'] = coin_flip
+                for k in self.config.inputs:
+                    example[f'random_vertical_flip/{k}'] = example[k]
+
             if coin_flip:
                 inputs = {k: tf.image.flip_up_down(v) for k, v in inputs.items()}
                 boxes = {k: data_utils.flip_boxes_left_right(v)

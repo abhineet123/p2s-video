@@ -44,11 +44,14 @@ train_config = D(
 )
 
 eval_config = D(
+    ckpt_copy=0,
     ckpt_iter=0,
+    oldest_ckpt_first=0,
     check_ckpt=0,
     add_stride_info=1,
     csv_steps=10,
     write_to_video=1,
+    write_to_zip=0,
     mask_from_gt=1,
     mask_from_logits=0,
     show_vis=0,
@@ -56,10 +59,11 @@ eval_config = D(
     save_vis=0,
     save_csv=1,
     profile=0,
-    info_file='',
     run_existing=1,
     remote='',
     proxy='',
+    remote_put='',
+    proxy_put='',
     # time in hours to wait between evals
     sleep_eval=2.,
     # time in minutes to wait before checking for new ckpt again
@@ -84,12 +88,16 @@ base_config = D(
     resnet_replace=[],
     gpu='',
 
+    model= D(mhd=0,),
+
     model_dir='',
     eval_type='',
     pretrained='',
 
     train=train_config,
     eval=eval_config,
+
+
 )
 
 architecture_config_map = {
@@ -125,6 +133,7 @@ architecture_config_map = {
         resnet_depth=50,
         resnet_sk_ratio=0.,
         resnet_width_multiplier=1,
+
         num_encoder_layers=6,
         dim_att=256,
         dim_mlp=1024,
@@ -136,9 +145,15 @@ architecture_config_map = {
     ),
     'resnet-c': D(
         resnet_variant='c4',
+
+        swin_variant='t',
+        swin_pt=0,
+        swin_patch_dim=0,
+
         resnet_depth=50,
         resnet_sk_ratio=0.,
         resnet_width_multiplier=1,
+
         num_encoder_layers=12,
         dim_att=512,
         dim_mlp=2048,

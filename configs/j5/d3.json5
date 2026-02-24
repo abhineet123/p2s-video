@@ -1,0 +1,7 @@
+{
+  "eval": {
+	remote: 'mjmini',
+	proxy: 'd3',
+	sleep_eval: %%0%%,
+	},
+}

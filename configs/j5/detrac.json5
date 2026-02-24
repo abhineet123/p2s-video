@@ -4,8 +4,9 @@
     %mode%_name: "detrac",
 
 	%mode%_suffix: "%0%",
+	%mode%_suffix: "seq-%0%",
 	%mode%_suffix: "%0%-seq-%%1%%",
-	%mode%_suffix: "%0%-%1%-seq-%%2%%",
+	%mode%_suffix: "%0%-%%1%%-seq-%%2%%",
 
 	transforms:{
 		scale_jitter: 0,

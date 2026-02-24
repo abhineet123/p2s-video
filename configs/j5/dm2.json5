@@ -1,0 +1,10 @@
+{
+  "model": {
+	len_vocab_shift: 0,
+	class_vocab_shift: 100,
+  },
+  "dataset": {
+	multi_class: 1,
+    diff_mask: 2,
+  }
+}

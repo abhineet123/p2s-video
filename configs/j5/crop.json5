@@ -1,6 +1,11 @@
 {
   "dataset": {
-	fixed_crop: %0%,
-
+	transforms: {
+		fixed_crop: 1,
+		fixed_crop: %%0%%,
+	}
+  },
+  "train": {
+    "save_suffix": ['crop',],
   }
 }

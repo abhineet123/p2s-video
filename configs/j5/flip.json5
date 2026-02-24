@@ -1,0 +1,11 @@
+{
+  "dataset": {
+		transforms: {
+			vert_flip: 1,
+			horz_flip: 1,
+		}
+  },
+	"train": {
+    "save_suffix": ['flip',],
+  }
+}

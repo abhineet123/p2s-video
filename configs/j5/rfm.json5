@@ -1,6 +1,12 @@
 {
   "dataset": {
   	rle_from_mask: 1,
-  	rle_from_mask: %%0%%,
-  }
+	rle_from_json: 0,	
+	"%mode%": {
+		params_from_json: 0,
+	},
+  },
+  "train": {
+    "save_suffix": ['rfm',],
+  },
 }

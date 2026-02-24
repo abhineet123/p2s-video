@@ -1,0 +1,12 @@
+{
+	"dataset": {
+		transforms:{
+			scale_jitter: 1,
+			jitter_scale_min: %0%,
+			jitter_scale_max: %1%,
+		},
+	},
+	train: {
+		save_suffix: ["sj_%0%_%1%",],
+	},
+}

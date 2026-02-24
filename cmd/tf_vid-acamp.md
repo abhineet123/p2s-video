@@ -6,9 +6,11 @@
         - [6_per_seq       @ inv/1k8_vid_entire_seq](#6_per_seq___inv_1k8_vid_entire_seq_)
         - [12_per_seq       @ inv/1k8_vid_entire_seq](#12_per_seq___inv_1k8_vid_entire_seq_)
 - [10k6_vid_entire_seq       @ acamp](#10k6_vid_entire_seq___acam_p_)
-    - [inv       @ 10k6_vid_entire_seq](#inv___10k6_vid_entire_se_q_)
-        - [2_per_seq       @ inv/10k6_vid_entire_seq](#2_per_seq___inv_10k6_vid_entire_se_q_)
-        - [12_per_seq       @ inv/10k6_vid_entire_seq](#12_per_seq___inv_10k6_vid_entire_se_q_)
+        - [8_per_seq_random_len_2       @ 10k6_vid_entire_seq/](#8_per_seq_random_len_2___10k6_vid_entire_seq_)
+- [10k6_vid_entire_seq-inv       @ 10k6_vid_entire_seq](#10k6_vid_entire_seq_inv___10k6_vid_entire_se_q_)
+    - [2_per_seq       @ 10k6_vid_entire_seq-inv](#2_per_seq___10k6_vid_entire_seq_in_v_)
+    - [12_per_seq       @ 10k6_vid_entire_seq-inv](#12_per_seq___10k6_vid_entire_seq_in_v_)
+    - [8_per_seq_random_len_2       @ 10k6_vid_entire_seq-inv](#8_per_seq_random_len_2___10k6_vid_entire_seq_in_v_)
 - [20k6_5_video       @ acamp](#20k6_5_video___acam_p_)
     - [inv       @ 20k6_5_video](#inv___20k6_5_video_)
         - [2_per_seq       @ inv/20k6_5_video](#2_per_seq___inv_20k6_5_video_)
@@ -37,15 +39,23 @@ python data/scripts/create_video_tfrecord.py cfg=acamp:1k8_vid_entire_seq_inv_12
 <a id="10k6_vid_entire_seq___acam_p_"></a>
 # 10k6_vid_entire_seq       @ acamp-->tf_vid-acamp
 python data/scripts/create_video_tfrecord.py cfg=acamp:10k6_vid_entire_seq:len-2:strd-1:asi
-<a id="inv___10k6_vid_entire_se_q_"></a>
-## inv       @ 10k6_vid_entire_seq-->tf_vid-acamp
+<a id="8_per_seq_random_len_2___10k6_vid_entire_seq_"></a>
+### 8_per_seq_random_len_2       @ 10k6_vid_entire_seq/-->tf_vid-acamp
+python data/scripts/create_video_tfrecord.py cfg=acamp:10k6_vid_entire_seq_8_per_seq_random_len_2:len-2:strd-2:asi-0
+
+
+<a id="10k6_vid_entire_seq_inv___10k6_vid_entire_se_q_"></a>
+# 10k6_vid_entire_seq-inv       @ 10k6_vid_entire_seq-->tf_vid-acamp
 python data/scripts/create_video_tfrecord.py cfg=acamp:10k6_vid_entire_seq_inv:len-2:strd-1:asi
-<a id="2_per_seq___inv_10k6_vid_entire_se_q_"></a>
-### 2_per_seq       @ inv/10k6_vid_entire_seq-->tf_vid-acamp
+<a id="2_per_seq___10k6_vid_entire_seq_in_v_"></a>
+## 2_per_seq       @ 10k6_vid_entire_seq-inv-->tf_vid-acamp
 python data/scripts/create_video_tfrecord.py cfg=acamp:10k6_vid_entire_seq_inv_2_per_seq:len-2:strd-1:asi
-<a id="12_per_seq___inv_10k6_vid_entire_se_q_"></a>
-### 12_per_seq       @ inv/10k6_vid_entire_seq-->tf_vid-acamp
+<a id="12_per_seq___10k6_vid_entire_seq_in_v_"></a>
+## 12_per_seq       @ 10k6_vid_entire_seq-inv-->tf_vid-acamp
 python data/scripts/create_video_tfrecord.py cfg=acamp:10k6_vid_entire_seq_inv_12_per_seq:len-2:strd-1:asi
+<a id="8_per_seq_random_len_2___10k6_vid_entire_seq_in_v_"></a>
+## 8_per_seq_random_len_2       @ 10k6_vid_entire_seq-inv-->tf_vid-acamp
+python data/scripts/create_video_tfrecord.py cfg=acamp:10k6_vid_entire_seq_inv_8_per_seq_random_len_2:len-2:strd-2:asi-0
 
 <a id="20k6_5_video___acam_p_"></a>
 # 20k6_5_video       @ acamp-->tf_vid-acamp

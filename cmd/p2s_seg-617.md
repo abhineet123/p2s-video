@@ -148,6 +148,8 @@ python3 run.py --cfg=configs/config_seg.py  --j5=m-resnet_640_resize_640-0_31-64
 <a id="p_1024_sub_8_aug_lac___r_1280_0_3_1_"></a>
 ### p-1024-sub-8-aug-lac       @ r-1280/0_31-->p2s_seg-617
 python3 run.py --cfg=configs/config_seg.py  --j5=train,resnet-1024,617,seg-0_31:r-1280:p-1024:sub-8:rot-15_345_16:strd-64_256:flip,batch-4,dbg-0,dyn-1,dist-1,ep-10000,gz,pt-1,lac,seq3k,voc18
+`dbg`
+python3 run.py --cfg=configs/config_seg.py  --j5=train,resnet-1024,617,seg-0_31:r-1280:p-1024:sub-8:rot-15_345_16:strd-64_256:flip,batch-1,dbg-0,dyn-1,dist-0,ep-10000,gz,pt-1,lac,seq3k,voc18
 <a id="on_32_49___p_1024_sub_8_aug_lac_r_1280_0_31_"></a>
 #### on-32_49       @ p-1024-sub-8-aug-lac/r-1280/0_31-->p2s_seg-617
 CUDA_VISIBLE_DEVICES=1 python3 run.py --cfg=configs/config_seg.py  --j5=m-resnet_1024_resize_1280-0_31-1024_1024-64_256-rot_15_345_16-flip-sub_8-lac-617-batch_4-seq3k,_eval_,batch-1,save-vis-0,dbg-0,dyn-1,617,seg-32_49:r-1280:p-1024:sub-8,lac,seq3k,voc28,x99

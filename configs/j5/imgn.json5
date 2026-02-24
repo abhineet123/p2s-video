@@ -1,0 +1,15 @@
+{
+  "dataset": {
+	img_ext: ".JPEG",
+	root_dir: "datasets/ILSVRC2015/Data",
+    %mode%_name: "imagenet_%0%",
+	%mode%_suffix: "%%1%%",
+
+	transforms:{
+		scale_jitter: 0,
+		fixed_crop: 0,
+		jitter_scale_min: 0.3,
+		jitter_scale_max: 2.0,
+	},
+  }
+}

@@ -609,13 +609,18 @@ def build_strategy(dist, use_tpu, master, training):
         if not training:
             """default NcclAllReduce does not allow gather operation with 
             string tensors returned from postprocess_tpu"""
-            # cross_device_ops = tf.distribute.HierarchicalCopyAllReduce()
+
             cross_device_ops = tf.distribute.ReductionToOneDevice()
         strategy = tf.distribute.MirroredStrategy(cross_device_ops=cross_device_ops)
         logging.info('Running using MirroredStrategy on %d replicas',
                      strategy.num_replicas_in_sync)
     elif dist == 2:
-        strategy = tf.distribute.MultiWorkerMirroredStrategy()
+        # cross_device_ops = tf.distribute.HierarchicalCopyAllReduce()
+        communication_options = tf.distribute.experimental.CommunicationOptions(
+            implementation=tf.distribute.experimental.CommunicationImplementation.NCCL)
+        strategy = tf.distribute.MultiWorkerMirroredStrategy(
+            communication_options=communication_options)
+        # strategy = tf.distribute.MultiWorkerMirroredStrategy()
     else:
         raise AssertionError(f'invalid dist: {dist}')
 
@@ -758,30 +763,54 @@ def linux_path(*args, **kwargs):
     return os.path.join(*args, **kwargs).replace(os.sep, '/')
 
 
-def connect_to_remote(info_file, remote, proxy):
-    remote_info = read_remote_info(info_file)
-    name0, name1, dst, ecr, key, port = remote_info[remote]
+def connect_to_remote(remote, proxy):
+    # remote_info = read_remote_info(info_file)
+    # name0, name1, dst, ecr, key, port = remote_info[remote]
 
-    username, server = dst.split('@')
-    print(f'connecting to remote {remote}')
+    # username, server = dst.split('@')
+    # print(f'connecting to remote {remote}')
 
     import paramiko
     ssh = paramiko.SSHClient()
+    ssh_path = os.path.join(os.path.expanduser("~"), ".ssh/config")
+    ssh_key_path = os.path.join(os.path.expanduser("~"), ".ssh/id_rsa")
+    config_all = paramiko.SSHConfig.from_file(open(ssh_path))
 
+    config=config_all.lookup(remote)
+    try:
+        port = int(config['port'])
+    except KeyError:
+        port = 22
+
+    add = '{:s}@{:s}:{:d}'.format(config['user'], config['hostname'], port)
+    print(f'connecting to {remote}: {add}')
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(server, username=username, port=port, timeout=5)
+
+    ssh.connect(hostname=config['hostname'],
+                username=config['user'],
+                port=port,
+                key_filename=ssh_key_path,
+                timeout=5)
+    # ssh.connect(name0, config=config, timeout=5)
 
     ssh_main = None
 
     if proxy:
         print(f'connecting to proxy remote {proxy}')
+        proxy_config = config_all.lookup(proxy)
+        try:
+            proxy_port = int(proxy_config['port'])
+        except KeyError:
+            proxy_port = 22
+        # _, _, proxy_dst, _, _, proxy_port = remote_info[proxy]
+        # proxy_username, proxy_server = proxy_dst.split('@')
 
-        _, _, proxy_dst, _, _, proxy_port = remote_info[proxy]
-        proxy_username, proxy_server = proxy_dst.split('@')
+        add = '{:s}@{:s}:{:d}'.format(proxy_config['user'], proxy_config['hostname'], proxy_port)
+        print(f'connecting to {remote}: {add}')
 
         vmtransport = ssh.get_transport()
-        dest_addr = (proxy_server, proxy_port)  # edited#
-        local_addr = (server, port)  # edited#
+        dest_addr = (proxy_config['hostname'], proxy_port)  # edited#
+        local_addr = (config['hostname'], port)  # edited#
         try:
             vmchannel = vmtransport.open_channel(
                 "direct-tcpip", dest_addr, local_addr)
@@ -791,17 +820,17 @@ def connect_to_remote(info_file, remote, proxy):
 
         proxy_ssh = paramiko.SSHClient()
         proxy_ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        proxy_ssh.connect(proxy_server, username=proxy_username, sock=vmchannel)
+        proxy_ssh.connect(proxy_config['hostname'], username=proxy_config['user'], sock=vmchannel)
 
         ssh_main = ssh
         ssh = proxy_ssh
     return ssh, ssh_main
 
 
-def get_remote_config(checkpoint_dir, info_file, remote, proxy):
+def get_remote_config(checkpoint_dir, remote, proxy):
     checkpoint_dir = os.path.abspath(checkpoint_dir)
 
-    ret = connect_to_remote(info_file, remote, proxy)
+    ret = connect_to_remote(remote, proxy)
     if ret is None:
         return None
     ssh, ssh_main = ret
@@ -858,6 +887,11 @@ def get_local_ckpt(checkpoint_dir, excluded_ckpts, ckpt_iter, create_copy):
                    if os.path.isfile(linux_path(checkpoint_dir, k))
                    and is_ckpt(k) and get_name(k) not in excluded_ckpts]
 
+    """exclude checkpoints partially downloaded by another parallel evaluation run"""
+    local_ckpts = [k for k in local_ckpts if os.path.isfile(
+        linux_path(checkpoint_dir, k.replace('.data-00000-of-00001', '.index'))
+    )]
+
     # eval_dirs = [k for k in os.listdir(checkpoint_dir)
     #              if k.startswith('ckpt-') and os.path.isdir(linux_path(checkpoint_dir, k))]
     # local_ckpts = [ckpt for ckpt in local_ckpts if
@@ -900,8 +934,8 @@ def get_local_ckpt(checkpoint_dir, excluded_ckpts, ckpt_iter, create_copy):
     return ckpt_path
 
 
-def get_remote_ckpt(checkpoint_dir, info_file, remote, proxy):
-    ret = connect_to_remote(info_file, remote, proxy)
+def get_remote_ckpt(checkpoint_dir, remote, proxy, ckpt_iter=None, oldest_ckpt_first=False):
+    ret = connect_to_remote(remote, proxy)
     if ret is None:
         return None
     ssh, ssh_main = ret
@@ -924,12 +958,22 @@ def get_remote_ckpt(checkpoint_dir, info_file, remote, proxy):
     # new_remote_ckpts_str = '\n'.join(new_remote_ckpts)
     # print(f'\nnew_remote_ckpts:\n{new_remote_ckpts_str}\n')
 
-    new_remote_ckpts.sort()
+    new_remote_ckpts.sort(reverse=oldest_ckpt_first)
 
     ckpt_path = None
 
+    if not new_remote_ckpts:
+        assert ckpt_iter is None or ckpt_iter == 0, f"ckpt_iter {ckpt_iter} not found"
+
     if new_remote_ckpts:
-        ckpt = new_remote_ckpts[-1]
+        if ckpt_iter is not None and ckpt_iter > 0:
+            new_remote_ckpt_iters = [get_ckpt_iter(ckpt) for ckpt in new_remote_ckpts]
+            assert ckpt_iter in new_remote_ckpt_iters, \
+                f"ckpt_iter {ckpt_iter} not found in new_remote_ckpt_iters:\n{new_remote_ckpt_iters}"
+            ckpt_idx = new_remote_ckpt_iters.index(ckpt_iter)
+        else:
+            ckpt_idx = -1
+        ckpt = new_remote_ckpts[ckpt_idx]
         ckpt_name = os.path.splitext(os.path.basename(ckpt))[0]
         ckpt_path = linux_path(checkpoint_dir, ckpt_name)
 
@@ -957,6 +1001,94 @@ def get_remote_ckpt(checkpoint_dir, info_file, remote, proxy):
         ssh_main.close()
     return ckpt_path
 
+
+def mkdir_p(sftp, remote, is_dir=False):
+    """
+    emulates mkdir_p if required.
+    sftp - is a valid sftp object
+    remote - remote path to create.
+    """
+    dirs_ = []
+    if is_dir:
+        dir_ = remote
+    else:
+        dir_, basename = os.path.split(remote)
+    while len(dir_) > 1:
+        dirs_.append(dir_)
+        dir_, _  = os.path.split(dir_)
+
+    if len(dir_) == 1 and not dir_.startswith("/"):
+        dirs_.append(dir_) # For a remote path like y/x.txt
+
+    while len(dirs_):
+        dir_ = dirs_.pop()
+        try:
+            sftp.stat(dir_)
+        except:
+            print("making ... dir",  dir_)
+            sftp.mkdir(dir_)
+
+def put_remote_ckpt(ckpt, checkpoint_dir, remote, proxy, tb):
+    ret = connect_to_remote(remote, proxy)
+    if ret is None:
+        return None
+    ssh, ssh_main = ret
+
+    if not ckpt.endswith('.data-00000-of-00001'):
+        ckpt = f'{ckpt}.data-00000-of-00001'
+
+    # key_file =  linux_path(os.path.expanduser('~'), '.ssh', 'id_rsa')
+    # k = paramiko.RSAKey.from_private_key_file(key_file)
+    # ssh.connect(hostname=server, username=username, port=port, pkey=k, timeout=5)
+
+    cmd_to_execute = f'ls {checkpoint_dir}'
+    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd_to_execute)
+
+    ssh_stdout.channel.recv_exit_status()
+    ssh_stdout_lines = ssh_stdout.readlines()
+
+    remote_files = [k.strip() for k in ssh_stdout_lines]
+    remote_ckpts = [k for k in remote_files if is_ckpt(k)]
+    local_is_new = ckpt not in remote_ckpts
+
+    if not local_is_new:
+        print('ckpt already exists on remote so not sending it again')
+        return
+
+    # new_remote_ckpts_str = '\n'.join(new_remote_ckpts)
+    # print(f'\nnew_remote_ckpts:\n{new_remote_ckpts_str}\n')
+
+    ckpt_file = os.path.basename(ckpt)
+    ckpt_name = os.path.splitext(ckpt_file)[0]
+
+    print(f'transferring checkpoint to remote {remote}: {ckpt}')
+
+    ckpt_idx = f'{ckpt_name}.index'
+    files_to_transfer = ['config.json', ckpt_file, ckpt_idx]
+
+    if tb:
+        tb_files = [k for k in os.listdir(checkpoint_dir)
+                       if os.path.isfile(linux_path(checkpoint_dir, k))
+                       and k.startswith('events.out.tfevents.')]
+        files_to_transfer += tb_files
+
+    files_to_transfer_str = '\n'.join(files_to_transfer)
+    print(f'\nfiles_to_transfer:\n{files_to_transfer_str}\n')
+
+    ckpt_info_file = linux_path(checkpoint_dir, 'checkpoint')
+    with open(ckpt_info_file, 'w') as f:
+        f.write(f'model_checkpoint_path: "{ckpt_name}"')
+
+    files_to_transfer.append('checkpoint')
+    sftp = ssh.open_sftp()
+    mkdir_p(sftp, checkpoint_dir, is_dir=True)
+    for file in files_to_transfer:
+        file_path = linux_path(checkpoint_dir, file)
+        print(f'transferring {file}')
+        sftp.put(file_path, file_path)
+    ssh.close()
+    if ssh_main is not None:
+        ssh_main.close()
 
 def read_remote_info(info_file):
     info_path = linux_path(os.path.expanduser('~'), info_file)

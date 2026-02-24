@@ -615,7 +615,7 @@ def create_tf_example(
             assert params.class_offset > 0, "class_offset must be > 0"
 
             class_ids = task_utils.get_rle_class_ids(
-                vid_mask_sub, starts, lengths, rle_id_to_col,
+                vid_mask_sub, starts, n_classes,
                 order=params.flat_order)
 
             rle_cmp.append(class_ids)

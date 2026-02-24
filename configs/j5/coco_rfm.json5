@@ -1,0 +1,14 @@
+{
+"dataset": {
+	root_dir: "datasets/coco",
+	compressed: 1,
+	rle_from_json: 0,
+	"%mode%": {
+		params_from_json: 0,
+		suffix: "semantic_train2017",
+	},
+  },
+"%mode%": {
+	save_suffix: ["coco_semantic_train2017",],
+  },
+}

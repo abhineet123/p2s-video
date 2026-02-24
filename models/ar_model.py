@@ -1,3 +1,4 @@
+import cv2
 import ml_collections
 
 import utils
@@ -10,9 +11,10 @@ from architectures.transformers import VisionTransformer
 from models import model as model_lib
 from models import model_utils
 import tensorflow as tf
+import numpy as np
 
 from tasks import task_utils
-
+import vocab
 
 @model_lib.ModelRegistry.register('encoder_ar_decoder')
 class Model(tf.keras.models.Model):
@@ -235,11 +237,18 @@ class ARTrainer(model_lib.Trainer):
           **kwargs: other neccesary configurations to pass for training setup.
         """
         super().__init__(config, **kwargs)
-        self.sample = None
+        self.examples = None
+        self.y_pred = None
+        self.y_true = None
+        self.loss = None
+        self.loss_notpad = None
+        self.y_correct = None
         self.step = 0
 
         self._category_names = task_utils.get_category_names(
             config.dataset.get('category_names_path'))
+
+        self.class_id_to_col, self.class_id_to_name = task_utils.get_class_info(self._category_names)
 
         self._metrics.update({
             'loss_notpad': tf.keras.metrics.Mean('loss_notpad'),
@@ -256,14 +265,139 @@ class ARTrainer(model_lib.Trainer):
 
     def sample_to_tb(self):
         self.step += 1
-        tf.summary.image(f'images', self.sample, self.step)
+        images = self.examples['image']
+        tf.summary.image(f'images', images, self.step)
+
+        n_pred_non_zeros = tf.math.count_nonzero(tf.not_equal(self.y_pred, 0))
+        n_gt_non_zeros = tf.math.count_nonzero(tf.not_equal(self.y_true, 0))
+
+        tf.summary.scalar(f'iter/loss', self.loss, self.step)
+        tf.summary.scalar(f'iter/loss_notpad', self.loss_notpad, self.step)
+        tf.summary.scalar(f'iter/y_correct', self.y_correct, self.step)
+        tf.summary.scalar(f'iter/n_pred_non_zeros', n_pred_non_zeros, self.step)
+        tf.summary.scalar(f'iter/n_gt_non_zeros', n_gt_non_zeros, self.step)
+
+        try:
+            masks = self.examples['mask']
+        except KeyError:
+            pass
+        else:
+            # return
+            batch_size, n_rows, n_cols = images.shape[:3]
+            img_h, img_w = n_rows, n_cols
+
+            mode_cfg = self.config.dataset.train
+
+            max_length = mode_cfg.max_length
+            subsample = mode_cfg.subsample
+
+            assert max_length > 0, "max_length must be > 0"
+            # assert subsample >= 1, "subsample must be >= 1"
+
+            rle_from_mask = self.config.dataset.rle_from_mask
+            target_size = self.config.dataset.target_size
+            instance_wise = self.config.dataset.instance_wise
+            class_wise = self.config.dataset.class_wise
+            multi_class = self.config.dataset.multi_class
+
+            flat_order = self.config.dataset.flat_order
+            length_as_class = self.config.dataset.length_as_class
+            diff_mask = self.config.dataset.diff_mask
+            starts_2d = self.config.dataset.starts_2d
+
+            starts_offset = self.config.model.coord_vocab_shift
+            lengths_offset = self.config.model.len_vocab_shift
+            class_offset = self.config.model.class_vocab_shift
+
+            n_classes = len(self.class_id_to_name)
+
+            if subsample > 1:
+                max_length = int(max_length / subsample)
+                n_rows, n_cols = int(n_rows / subsample), int(n_cols / subsample)
+
+            masks_vis = []
+            masks_rec_vis = []
+            pred_masks_rec_vis = []
+            for batch_id in range(batch_size):
+                mask = masks[batch_id].numpy().squeeze()
+                image = images[batch_id].numpy()
+
+                pred_rle_tokens = self.y_pred[batch_id].numpy()
+
+                pred_rle_tokens = pred_rle_tokens[pred_rle_tokens != vocab.PADDING_TOKEN]
+                pred_mask_rec, _ = task_utils.mask_from_tokens(
+                    pred_rle_tokens,
+                    (n_rows, n_cols),
+                    allow_extra=True,
+                    length_as_class=length_as_class,
+                    max_length=max_length,
+                    starts_offset=starts_offset,
+                    lengths_offset=lengths_offset,
+                    class_offset=class_offset,
+                    starts_2d=starts_2d,
+                    multi_class=multi_class,
+                    flat_order=flat_order,
+                    ignore_invalid=True,
+                    diff_mask=diff_mask,
+                    max_seq_len=None,
+                    n_classes=n_classes,
+                )
+                pred_mask_rec_vis = task_utils.mask_id_to_vis_bgr(pred_mask_rec, self.class_id_to_col)
+                pred_mask_rec_vis = task_utils.resize_mask(pred_mask_rec_vis, (img_h, img_w))
+                pred_masks_rec_vis.append(pred_mask_rec_vis)
+
+                true_rle_tokens = self.y_true[batch_id].numpy()
+                true_rle_tokens = true_rle_tokens[true_rle_tokens != vocab.PADDING_TOKEN]
+                mask_rec, rle_rec_cmp = task_utils.mask_from_tokens(
+                    true_rle_tokens,
+                    (n_rows, n_cols),
+                    allow_extra=False,
+                    length_as_class=length_as_class,
+                    max_length=max_length,
+                    starts_offset=starts_offset,
+                    lengths_offset=lengths_offset,
+                    class_offset=class_offset,
+                    starts_2d=starts_2d,
+                    multi_class=multi_class,
+                    flat_order=flat_order,
+                    ignore_invalid=False,
+                    max_seq_len=None,
+                    diff_mask=diff_mask,
+                    n_classes=n_classes,
+                )
+                mask_vis = task_utils.mask_id_to_vis_bgr(mask, self.class_id_to_col)
+                masks_vis.append(mask_vis)
+
+                mask_rec_vis = task_utils.mask_id_to_vis_bgr(mask_rec, self.class_id_to_col)
+                mask_rec_vis = task_utils.resize_mask(mask_rec_vis, (img_h, img_w))
+                masks_rec_vis.append(mask_rec_vis)
+
+                image = (image*255.).astype(np.uint8)
+                image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+                # print('\npress any key to continue\n')
+
+                image_vis = np.concatenate((image_bgr, mask_vis, mask_rec_vis, pred_mask_rec_vis), axis=1)
+                image_vis = task_utils.resize_ar(image_vis, width=1800)
+                cv2.imshow('image_vis', image_vis)
+                cv2.waitKey(1000)
+
+            pred_masks_rec_vis = np.stack(pred_masks_rec_vis, axis=0)
+            pred_masks_rec_vis = tf.convert_to_tensor(pred_masks_rec_vis)
+
+            masks_rec_vis = np.stack(masks_rec_vis, axis=0)
+            masks_rec_vis = tf.convert_to_tensor(masks_rec_vis)
+
+            masks_vis = np.stack(masks_vis, axis=0)
+            masks_vis = tf.convert_to_tensor(masks_vis)
+
+            tf.summary.image(f'masks', masks_vis, self.step)
+            tf.summary.image(f'masks_rec', masks_rec_vis, self.step)
+            tf.summary.image(f'pred_masks_rec', pred_masks_rec_vis, self.step)
 
     def compute_loss(self, preprocess_outputs, validation):
         """Compute loss based on model outputs and targets."""
         examples, input_seq, target_seq, token_weights = preprocess_outputs
-        image = examples["image"]
-
-        self.sample = image
 
         target_seq = utils.flatten_batch_dims(target_seq, out_rank=2)
         token_weights = utils.flatten_batch_dims(token_weights, out_rank=2)
@@ -273,6 +407,7 @@ class ARTrainer(model_lib.Trainer):
         token_weights_notpad = tf.where(
             is_padding, tf.zeros_like(token_weights), token_weights)
 
+        image = examples["image"]
         logits = self.model(image, input_seq)
         losses = model_utils.get_loss(
             logits, target_seq, self.config.train.loss_type)
@@ -283,29 +418,50 @@ class ARTrainer(model_lib.Trainer):
 
         # update metrics
         y_mask = tf.greater(token_weights_notpad, 0)
+        """
+        flatten tokens from all batch samples into a single sequence
+        each sequence might have different length so maintaining a 
+        batch-wise shape is not possible
+        """
+        y_true_unbatched = tf.boolean_mask(target_seq, y_mask)
+        y_pred_logits_unbatched = tf.boolean_mask(logits, y_mask)
+        y_mask = tf.greater(token_weights_notpad, 0)
+        y_correct = model_utils.get_val_metrics(
+            target_seq, logits, y_mask)
 
-        y_true = tf.boolean_mask(target_seq, y_mask)
-        y_pred_logits = tf.boolean_mask(logits, y_mask)
+
+        if self.config.debug:
+            self.examples = examples
+            self.loss = loss
+            self.loss_notpad = loss_notpad
+
+            self.y_true = target_seq
+            self.y_correct = y_correct
+            self.y_pred = tf.argmax(logits, axis=2)
 
         if validation:
             self._val_metrics['loss_notpad'].update_state(loss_notpad)
             self._val_metrics['accuracy_notpad'].update_state(
-                y_true,
-                y_pred_logits,
+                y_true_unbatched,
+                y_pred_logits_unbatched,
             )
-            y_mask = tf.greater(token_weights_notpad, 0)
-            y_correct = model_utils.get_val_metrics(
-                target_seq, logits, y_mask)
             self._val_metrics['correct_pc'].update_state(y_correct)
         else:
             self._metrics['loss_notpad'].update_state(loss_notpad)
             self._metrics['accuracy_notpad'].update_state(
-                y_true,
-                y_pred_logits,
+                y_true_unbatched,
+                y_pred_logits_unbatched,
             )
             # if self.config.debug:
             #     from tasks.visualization import vis_utils
             #     vis_utils.debug_loss(
+            #         self.config, self._category_names, examples, target_seq,
+            #         logits, y_mask, y_pred=None, run_type='train',is_video=False)
+
+            # # type error
+            # if self.config.debug:
+            #     from .model_utils import debug_loss
+            #     debug_loss(
             #         self.config, self._category_names, examples, target_seq,
             #         logits, y_mask, y_pred=None, run_type='train',is_video=False)
 

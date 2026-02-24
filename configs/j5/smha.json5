@@ -1,0 +1,9 @@
+{
+  model: {
+	shared_mha: 0,
+  },
+  train: {
+    save_suffix: ['smha',],
+  },
+
+}

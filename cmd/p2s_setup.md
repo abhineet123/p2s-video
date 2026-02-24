@@ -4,8 +4,10 @@
 - [x99 / 18.04](#x99___18_0_4_)
     - [upgrade       @ x99_/_18.04](#upgrade___x99___18_0_4_)
 - [virtualenv](#virtualen_v_)
+    - [conda       @ virtualenv](#conda___virtualenv_)
     - [windows       @ virtualenv](#windows___virtualenv_)
 - [install](#install_)
+    - [panopticapi       @ install](#panopticapi___instal_l_)
     - [skvideo       @ install](#skvideo___instal_l_)
     - [eval_utils       @ install](#eval_utils___instal_l_)
     - [win       @ install](#win___instal_l_)
@@ -16,6 +18,13 @@
         - [all       @ tensorflow/install](#all___tensorflow_install_)
             - [12.2       @ all/tensorflow/install](#12_2___all_tensorflow_install_)
             - [12.3       @ all/tensorflow/install](#12_3___all_tensorflow_install_)
+    - [nccl       @ install](#nccl___instal_l_)
+        - [grs       @ nccl/install](#grs___nccl_install_)
+        - [x99       @ nccl/install](#x99___nccl_install_)
+        - [e5g       @ nccl/install](#e5g___nccl_install_)
+        - [z1       @ nccl/install](#z1___nccl_install_)
+        - [p9       @ nccl/install](#p9___nccl_install_)
+        - [isc       @ nccl/install](#isc___nccl_install_)
     - [netifaces       @ install](#netifaces___instal_l_)
 - [soft-links](#soft_link_s_)
 - [pretrained](#pretraine_d_)
@@ -27,6 +36,7 @@
     - [movinet       @ pretrained](#movinet___pretrained_)
 - [secondary ethernet](#secondary_ethernet_)
 - [bugs](#bug_s_)
+- [bugs](#bug_s__1)
     - [annoying_warnings       @ bugs](#annoying_warnings___bugs_)
 
 <!-- /MarkdownTOC -->
@@ -51,18 +61,38 @@ sudo apt dist-upgrade
 sudo do-release-upgrade
 
 python3.8 -m pip install virtualenv virtualenvwrapper
+/usr/bin/python3 -m pip install virtualenv virtualenvwrapper
 
 sudo apt install python3.10
+
+
 
 <a id="virtualen_v_"></a>
 # virtualenv
 python3.10 -m pip install virtualenv virtualenvwrapper
+python3.11 -m pip install virtualenv virtualenvwrapper
+python3.12 -m pip install virtualenv virtualenvwrapper
+
 mkvirtualenv -p python3.10  pix2seq
 workon pix2seq
 
 nano ~/.bashrc
 alias p2s='workon pix2seq'
 source ~/.bashrc
+
+<a id="conda___virtualenv_"></a>
+## conda       @ virtualenv-->p2s_setup
+wget "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+bash Miniforge3-$(uname)-$(uname -m).sh
+
+conda config --set auto_activate_base false
+
+conda init
+conda init --reverse bash
+
+conda create -n pix2seq python=3.10
+conda activate pix2seq
+conda deactivate
 
 <a id="windows___virtualenv_"></a>
 ## windows       @ virtualenv-->p2s_setup
@@ -75,7 +105,10 @@ pix2seq\Scripts\activate
 # install
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-python -m pip install -r p2s_requirements.txt
+
+<a id="panopticapi___instal_l_"></a>
+## panopticapi       @ install-->p2s_setup
+pip install git+https://github.com/cocodataset/panopticapi.git
 
 <a id="skvideo___instal_l_"></a>
 ## skvideo       @ install-->p2s_setup
@@ -168,6 +201,45 @@ python3 -c "import tensorflow as tf; print(tf.sysconfig.get_build_info())"
 python3 -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
 ```
 
+
+<a id="nccl___instal_l_"></a>
+## nccl       @ install-->p2s_setup
+https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
+
+sudo nano /etc/nccl.conf
+
+NCCL_NSOCKS_PERTHREAD=4
+NCCL_SOCKET_NTHREADS=4
+NCCL_DEBUG=WARN
+
+<a id="grs___nccl_install_"></a>
+### grs       @ nccl/install-->p2s_setup
+NCCL_SOCKET_IFNAME==enp6s0
+NCCL_SOCKET_IFNAME==enp0s25
+
+<a id="x99___nccl_install_"></a>
+### x99       @ nccl/install-->p2s_setup
+NCCL_SOCKET_IFNAME==eno1
+NCCL_SOCKET_IFNAME==enp8s0
+
+<a id="e5g___nccl_install_"></a>
+### e5g       @ nccl/install-->p2s_setup
+NCCL_SOCKET_IFNAME==enp0s25
+NCCL_SOCKET_IFNAME==enp6s0
+
+<a id="z1___nccl_install_"></a>
+### z1       @ nccl/install-->p2s_setup
+NCCL_SOCKET_IFNAME==enp0s31f6
+NCCL_SOCKET_IFNAME==enp13s0
+
+<a id="p9___nccl_install_"></a>
+### p9       @ nccl/install-->p2s_setup
+NCCL_SOCKET_IFNAME==enp10s0
+
+<a id="isc___nccl_install_"></a>
+### isc       @ nccl/install-->p2s_setup
+NCCL_SOCKET_IFNAME==lo
+
 <a id="netifaces___instal_l_"></a>
 ## netifaces       @ install-->p2s_setup
 sudo apt-get install python3.10-dev
@@ -228,10 +300,13 @@ tar -xvf movinet_a5_base.tar.gz
 # secondary ethernet
 ```
 sudo ip route del 192.168.177.0/24
+
 GRS:
 sudo ip route add 192.168.177.0/24 dev enp6s0 metric 1
+
 X99:
 sudo ip route add 192.168.177.0/24 dev enp8s0 metric 1
+
 E5G
 sudo ip route add 192.168.177.0/24 dev enp0s25 metric 1
 
@@ -239,7 +314,6 @@ sudo apt install ethtool
 sudo ethtool enp6s0
 sudo ethtool enp8s0
 sudo ethtool enp0s25
-
 
 sudo apt install bmon
 bmon -p enp6s0
@@ -249,6 +323,20 @@ bmon -p enp0s25
 
 <a id="bug_s_"></a>
 # bugs
+<a id="bug_s__1"></a>
+# bugs
+`qt.qpa.plugin: could not load the qt platform plugin "xcb" even though it was found.`
+https://stackoverflow.com/a/72090539
+simply reinstalling opencv can fix it
+
+pip uninstall opencv-python opencv-contrib-python
+pip install opencv-python
+pip install numpy==1.23.5
+
+`Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.`
+https://github.com/QuasarApp/CQtDeployer/issues/705
+this also has another solution to the  `qt platform plugin "xcb"` bug
+
 ``Collective ops is aborted by: failed to connect to all addresses``
 probably something to do with the dataset loader
 https://github.com/tensorflow/tensorflow/issues/39122
@@ -265,6 +353,13 @@ This is caused by inheriting from `keras.model` instead of `keras.layers.layer`
 ~/.virtualenvs/pix2seq/lib/python3.10/site-packages/tensorflow_addons/utils/tfa_eol_msg.py:53
 
 ``segmentation fault while loading checkpoint in graph mode in WSL``
-something to do with running multiple evaluations in graph mode and possibly trying to checkpoint at the same time or some such thing a maybe excessive CPU usage or possibly excessive RAM usage although htop does not indicate any such thing happening
+something to do with running multiple evaluations in graph mode and possibly trying to checkpoint at the same time or some such thing or maybe excessive CPU usage or possibly excessive RAM usage although htop does not indicate any such thing happening
+
+
+
+
+
+
+
 
 

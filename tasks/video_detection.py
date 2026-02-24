@@ -423,9 +423,9 @@ def build_response_seq_from_video_bboxes(
     """
     different combinations of random, fake and real class labels apparently 
     created in case something other than the real labels is required 
-    according to the class_label_corruption Parameter
+    according to the class_label_corruption parameter
 
-    class_label_corruption=rand_n_fake_cls by default  
+    class_label_corruption = rand_n_fake_cls by default  
     """
     rand_cls = vocab.BASE_VOCAB_SHIFT + tf.random.uniform(
         lb_shape,
@@ -448,13 +448,13 @@ def build_response_seq_from_video_bboxes(
     new_label_m = tf.where(is_padding, tf.zeros_like(new_label_m), new_label_m)
 
     """response_seq_class_m is same as response_seq if no corruptions are needed,
-    i.e. if class_label_corruption=none
+    i.e. if class_label_corruption = none
     otherwise, some or all the real labels are randomly replaced by noise label to 
     generate corrupted labels that are used as input sequence
 
     The rationale for corrupting the input sequences might be that we want the network to produce 
     the right class labels in the subsequent outputs even if the previous one was incorrect 
-    So we do not want to condition the Generation of class output In the next tokens Lee to is strongly on 
+    So we do not want to condition the generation of class output in the next tokens strongly on 
     the class label being correct in the previously generated tokens
     """
     response_seq_class_m = tf.concat([quantized_bboxes, new_label_m], axis=-1)

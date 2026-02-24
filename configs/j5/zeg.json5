@@ -1,0 +1,16 @@
+{
+	"dist": 2,
+	"train": {
+		"save_suffix": ["zeg",],
+	},
+	"tf_config": {
+	"cluster": {
+		"worker": [
+			"z170.cs.ualberta.ca:35476", 
+			"e5g.cs.ualberta.ca:34567", 
+			"greyshark.cs.ualberta.ca:57698", 
+			]
+	},
+	"task": {"type": "worker", "index": -1}
+	}
+}

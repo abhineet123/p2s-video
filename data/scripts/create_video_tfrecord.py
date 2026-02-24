@@ -53,6 +53,15 @@ class Params(paramparse.CFG):
         self.end_frame_id = -1
         self.frame_stride = -1
 
+        """
+        if params.vis == 1:
+            from tasks.visualization import vis_utils
+            vis_utils.vis_json_ann(video, object_anns, category_id_to_name_map, image_dir)
+        if params.vis == 2:
+            fig = show_vid_objs(
+                video, image_dir, object_anns, category_id_to_name_map,
+                class_id_to_col, fig, params.show_mask, params.arrow)
+        """
         self.vis = 0
         self.show_mask = 0
         self.arrow = 1
@@ -109,7 +118,8 @@ def load_ytvis_annotations(annotation_path, vid_id_offset):
     else:
         assert bkg_class == 'background', "class id 0 can be used only for background"
 
-    vid_to_ann = collections.defaultdict(list)
+    vid_ids = [vid["id"] for vid in video_info]
+    vid_to_ann = {vid_id: [] for vid_id in vid_ids}
     for ann in annotations:
         ann['video_id'] += vid_id_offset
         vid_id = ann['video_id']
@@ -819,8 +829,15 @@ def get_seq_info(video_info_, filenames_to_vid_id, length):
         (vid_id, file_names_) for vid_id, file_names_ in zip(vid_ids, vid_file_names, strict=True)
     )
 
-    vid_id_to_seq_name = dict((vid_id_, file_names_[0].split('/')[0])
-                              for vid_id_, file_names_ in zip(vid_ids, vid_file_names, strict=True))
+    """annoying old method that does not work with imagenet-vid"""
+    # seq_names = [file_names_[0].split('/')[0] for file_names_ in vid_file_names]
+    """also does not work with imagenet-vid in eval_det"""
+    seq_names = [os.path.dirname(file_names_[0]) for file_names_ in vid_file_names]
+    # seq_names = [os.path.basename(os.path.dirname(file_names_[0])) for file_names_ in vid_file_names]
+
+    vid_id_to_seq_name = dict((vid_id_, seq_name_)
+                              for vid_id_, seq_name_ in zip(vid_ids, seq_names, strict=True))
+
     seq_to_vid_ids = collections.defaultdict(list)
     seq_to_file_names = collections.defaultdict(list)
     for vid_id, seq_name in vid_id_to_seq_name.items():
@@ -832,6 +849,8 @@ def get_seq_info(video_info_, filenames_to_vid_id, length):
         assert len(file_names_) == length, 'invalid subseq length'
 
         file_names_ = [file_name.replace(f'{seq_name}/', '') for file_name in file_names_]
+        # file_names_ = [os.path.basename(file_name) for file_name in file_names_]
+
         seq_to_file_names[seq_name].append(','.join(file_names_))
 
     seq_to_vid_ids = dict((seq, ','.join(vid_ids_)) for seq, vid_ids_ in seq_to_vid_ids.items())

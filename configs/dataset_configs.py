@@ -15,18 +15,24 @@
 # ==============================================================================
 """Dataset configs."""
 from configs.config_base import D
+from tasks import task_utils
 
 
 def get_shared_det_data():
     _transforms_config = D(
         scale_jitter=1,
+        vert_flip=1,
+        horz_flip=1,
         fixed_crop=1,
+        rotation=0,
         jitter_scale_min=0.3,
         jitter_scale_max=2.0,
         object_order='random',
     )
 
     _shared_dataset_config = D(
+        json_dir='',
+        img_ext='.jpg',
         buffer_size=300,
         batch_duplicates=1,
         cache_dataset=True,
@@ -115,14 +121,22 @@ def get_shared_seg_data():
     root_dir = './datasets/ipsc/well3/all_frames_roi'
     _transforms_config = D(
         scale_jitter=0,
+        random_scale=0,
+        rotation=0,
+        vert_flip=0,
+        horz_flip=0,
         fixed_crop=0,
+        scale_min=0.3,
+        scale_max=2.0,
         jitter_scale_min=0.3,
         jitter_scale_max=2.0,
         object_order='random',
     )
 
     data = D(
+        img_ext='.jpg',
         root_dir=root_dir,
+        json_dir='',
 
         label_shift=0,
         compressed=1,
@@ -148,10 +162,12 @@ def get_shared_seg_data():
         transforms=_transforms_config,
 
         multi_class=0,
+        diff_mask=0,
         length_as_class=0,
         starts_2d=0,
         shared_coord=0,
         flat_order='C',
+        randomize_runs=0,
 
         class_wise=0,
         instance_wise=0,
@@ -161,7 +177,12 @@ def get_shared_seg_data():
     for mode in ['train', 'eval']:
         mode_data = D()
         mode_data[f'suffix'] = ''
+        mode_data[f'split_suffix'] = ''
+        mode_data[f'patch_mode'] = 0
+        mode_data[f'subseq_mode'] = 0
         mode_data[f'resize'] = 0
+        mode_data[f'resize_x'] = 0
+        mode_data[f'resize_y'] = 0
         mode_data[f'start_id'] = 0
         mode_data[f'end_id'] = 0
         mode_data[f'patch_height'] = 0
@@ -172,12 +193,15 @@ def get_shared_seg_data():
         mode_data[f'min_rot'] = 0
         mode_data[f'max_rot'] = 0
         mode_data[f'enable_flip'] = 0
+        mode_data[f'sample'] = 0
+        mode_data[f'shuffle'] = 0
         mode_data[f'seq_id'] = -1
         mode_data[f'seq_start_id'] = 0
         mode_data[f'seq_end_id'] = -1
         mode_data[f'subsample'] = 1
         mode_data[f'max_length'] = 0
         mode_data[f'offsets_from_json'] = 1
+        mode_data[f'params_from_json'] = 1
         mode_data[f'allow_overlap'] = 0
         mode_data[f'filter'] = 0
 
@@ -224,6 +248,11 @@ def get_static_vid_seg_data():
 def ipsc_post_process(ds_cfg, task_cfg, model_cfg, training):
     import os
 
+    if task_cfg.image_size != model_cfg.image_size:
+        print('image_size mismatch between task_cfg and model_cfg')
+        print(f'setting both to {model_cfg.image_size}')
+        task_cfg.image_size = model_cfg.image_size
+
     if ds_cfg.target_size is not None and not ds_cfg.target_size:
         ds_cfg.target_size = task_cfg.image_size
 
@@ -257,10 +286,13 @@ def ipsc_post_process(ds_cfg, task_cfg, model_cfg, training):
         modes = ['eval']
 
     # modes = ['train', 'eval']
-    length_as_class = time_as_class = starts_2d = shared_coord = flat_order = multi_class = class_wise = instance_wise = None
+    diff_mask = length_as_class = time_as_class = starts_2d = shared_coord = flat_order = \
+        multi_class = class_wise = instance_wise = None
+
     if is_seg:
         multi_class = ds_cfg[f'multi_class']
         time_as_class = ds_cfg[f'time_as_class'] if is_video else 0
+        diff_mask = ds_cfg[f'diff_mask']
         length_as_class = ds_cfg[f'length_as_class']
         class_wise = ds_cfg[f'class_wise']
         instance_wise = ds_cfg[f'instance_wise']
@@ -293,6 +325,9 @@ def ipsc_post_process(ds_cfg, task_cfg, model_cfg, training):
             suffix = mode_cfg.suffix
 
             resize = mode_cfg[f'resize']
+            resize_x = mode_cfg[f'resize_x']
+            resize_y = mode_cfg[f'resize_y']
+
             start_id = mode_cfg[f'start_id']
             end_id = mode_cfg[f'end_id']
             patch_height = mode_cfg[f'patch_height']
@@ -303,33 +338,75 @@ def ipsc_post_process(ds_cfg, task_cfg, model_cfg, training):
             min_rot = mode_cfg[f'min_rot']
             max_rot = mode_cfg[f'max_rot']
             enable_flip = mode_cfg[f'enable_flip']
+            shuffle = mode_cfg[f'shuffle']
+            sample = mode_cfg[f'sample']
             seq_id = mode_cfg[f'seq_id']
             seq_start_id = mode_cfg[f'seq_start_id']
             seq_end_id = mode_cfg[f'seq_end_id']
             subsample = mode_cfg[f'subsample']
+            split_suffix = mode_cfg[f'split_suffix']
+            split_suffix = mode_cfg[f'split_suffix']
+
+            if resize:
+                resize_x = resize_y = resize
+
+            enable_resize = 0
+            if resize_x or resize_y:
+                assert resize_x and resize_y, "either both or none of resize_x and resize_y must be provided"
+                enable_resize = 1
 
             if suffix:
                 name = suffix
             else:
                 assert end_id >= start_id, f"invalid end_id: {end_id}"
 
+                patch_mode = mode_cfg['patch_mode']
+                subseq_mode = mode_cfg['subseq_mode'] or start_id > 0
+
                 if patch_width <= 0:
                     mode_cfg[f'patch_width'] = patch_width = patch_height
+                else:
+                    patch_mode = 1
 
                 if min_stride <= 0:
                     mode_cfg[f'min_stride'] = min_stride = patch_height
+                else:
+                    patch_mode = 1
 
                 if max_stride <= min_stride:
                     mode_cfg[f'max_stride'] = max_stride = min_stride
+                else:
+                    patch_mode = 1
 
                 db_suffixes = []
-                if resize:
-                    db_suffixes.append(f'resize_{resize}')
 
-                db_suffixes += [f'{start_id:d}_{end_id:d}',
-                                f'{patch_height:d}_{patch_width:d}',
-                                f'{min_stride:d}_{max_stride:d}',
-                                ]
+                # if split_suffix:
+                if split_suffix:
+                    db_suffixes.append(split_suffix)
+
+                if enable_resize:
+                    if resize:
+                        db_suffixes.append(f'resize_{resize}')
+                    else:
+                        db_suffixes.append(f'resize_{resize_x}x{resize_y}')
+
+                if subseq_mode:
+                    db_suffixes += [
+                        f'{start_id:d}_{end_id:d}',
+                    ]
+
+                if patch_mode:
+                    db_suffixes += [
+                        f'{patch_height:d}_{patch_width:d}',
+                        f'{min_stride:d}_{max_stride:d}',
+                    ]
+
+                if shuffle:
+                    db_suffixes.append('rnd')
+
+                if sample:
+                    db_suffixes.append('smp_{}'.format(sample))
+
                 if n_rot > 0:
                     db_suffixes.append(f'rot_{min_rot:d}_{max_rot:d}_{n_rot:d}')
 
@@ -404,6 +481,10 @@ def ipsc_post_process(ds_cfg, task_cfg, model_cfg, training):
             if subsample > 1:
                 rle_suffixes.append(f'sub_{subsample}')
 
+            if diff_mask == 1:
+                rle_suffixes.append(f'dm')
+            elif diff_mask == 2:
+                rle_suffixes.append(f'dm2')
 
             if starts_2d:
                 rle_suffixes.append(f'2d')
@@ -438,13 +519,15 @@ def ipsc_post_process(ds_cfg, task_cfg, model_cfg, training):
                 rle_suffixes.append(f'cw')
 
             rle_suffix = '-'.join(rle_suffixes)
-            json_name = f'{json_name}-{rle_suffix}'
+
+            if not ds_cfg.rle_from_mask:
+                json_name = f'{json_name}-{rle_suffix}'
 
         json_name_with_ext = f'{json_name}.json'
         if ds_cfg.compressed:
             json_name_with_ext += '.gz'
 
-        json_path = os.path.join(db_root_dir, json_name_with_ext)
+        json_path = os.path.join(db_root_dir, ds_cfg.json_dir, json_name_with_ext)
 
         print(f'reading {mode} json: {json_path}')
         if ds_cfg.compressed:
@@ -454,6 +537,9 @@ def ipsc_post_process(ds_cfg, task_cfg, model_cfg, training):
             import json
             with open(json_path, 'r') as fid:
                 json_dict = json.load(fid)
+
+        categories = json_dict['categories']
+        n_classes = len(categories) + 1
 
         num_examples = len(json_dict[db_type])
         print(f'num_examples: {num_examples}')
@@ -468,22 +554,80 @@ def ipsc_post_process(ds_cfg, task_cfg, model_cfg, training):
 
         tf_name = json_name
         model_name = json_name
+
         if is_seg:
-            params_from_json = json_dict['info']['params']
-            mode_cfg.max_length = params_from_json['max_length']
+            if ds_cfg.rle_from_mask and not training:
+                """
+                 edge-case where eval output dir name must include rle suffix to work with stitching script
+                 but input tfrecord name must not have it to work with sub_patch / tf_seg scripts
+                 
+                 rfm0 cannot be used for running eval on rfm models with custom offsets because of the need for 
+                 all the offsets to be same for both the gt and the pred since the code currently does not 
+                 support separate offsets for decoding gt and pred
+                 """
+                model_name = f'{model_name}-{rle_suffix}'
 
-            if mode_cfg.offsets_from_json:
-                if not training:
-                    assert model_cfg.coord_vocab_shift == params_from_json['starts_offset'], "starts_offset mismatch"
-                    assert model_cfg.len_vocab_shift == params_from_json['lengths_offset'], "lengths_offset mismatch"
-                    assert model_cfg.class_vocab_shift == params_from_json['class_offset'], "class_offset mismatch"
-                model_cfg.coord_vocab_shift = params_from_json['starts_offset']
-                model_cfg.len_vocab_shift = params_from_json['lengths_offset']
-                model_cfg.class_vocab_shift = params_from_json['class_offset']
+            if mode_cfg.params_from_json:
+                params_from_json = json_dict['info']['params']['rle']
+                mode_cfg.max_length = params_from_json['max_length']
+
+                if mode_cfg.offsets_from_json:
+                    if not training:
+                        assert model_cfg.coord_vocab_shift == params_from_json[
+                            'starts_offset'], "starts_offset mismatch"
+                        assert model_cfg.len_vocab_shift == params_from_json[
+                            'lengths_offset'], "lengths_offset mismatch"
+                        assert model_cfg.class_vocab_shift == params_from_json['class_offset'], "class_offset mismatch"
+                    model_cfg.coord_vocab_shift = params_from_json['starts_offset']
+                    model_cfg.len_vocab_shift = params_from_json['lengths_offset']
+                    model_cfg.class_vocab_shift = params_from_json['class_offset']
+                else:
+                    print('\noverriding RLE offsets from json is disabled\n')
             else:
-                print('\noverriding RLE offsets from json is disabled\n')
+                print('\noverriding params from json is disabled\n')
 
-            if not mode_cfg.allow_overlap:
+                if mode_cfg.max_length == 0:
+                    mode_cfg.max_length = task_cfg.image_size[0]
+
+                if not model_cfg.mhd:
+                    starts_offset = model_cfg.coord_vocab_shift
+                    lengths_offset = model_cfg.len_vocab_shift
+                    class_offset = model_cfg.class_vocab_shift
+                    max_length = mode_cfg.max_length
+
+                    starts_offset, lengths_offset, class_offset = task_utils.get_rle_offsets(
+                        starts_offset, lengths_offset, class_offset, length_as_class,
+                        max_length, subsample, shared_coord, n_classes)
+
+                    model_cfg.coord_vocab_shift = starts_offset
+                    model_cfg.len_vocab_shift = lengths_offset
+                    model_cfg.class_vocab_shift = class_offset
+
+            max_seq_len = model_cfg.max_seq_len
+            if n_classes > 2:
+                # multi-class mask
+                if length_as_class:
+                    if starts_2d:
+                        n_tokens_per_run = 3
+                    else:
+                        n_tokens_per_run = 2
+                else:
+                    if starts_2d:
+                        n_tokens_per_run = 4
+                    else:
+                        n_tokens_per_run = 3
+                    # three tokens per run
+            else:
+                # binary mask
+                if starts_2d:
+                    n_tokens_per_run = 3
+                else:
+                    n_tokens_per_run = 2
+
+            max_runs = max_seq_len // n_tokens_per_run
+            model_cfg.max_runs = max_runs
+
+            if not (model_cfg.mhd or mode_cfg.allow_overlap):
                 starts_offset = model_cfg.coord_vocab_shift
                 lengths_offset = model_cfg.len_vocab_shift
                 class_offset = model_cfg.class_vocab_shift
@@ -492,14 +636,17 @@ def ipsc_post_process(ds_cfg, task_cfg, model_cfg, training):
                 if subsample > 1:
                     max_length = int(max_length / subsample)
 
-                n_classes = 3 if ds_cfg.multi_class else 2
-
                 if not length_as_class:
-                    if shared_coord:
-                        assert starts_offset == lengths_offset,\
-                            "starts_offset and lengths_offset must be equal for shared_coord"
+                    if diff_mask:
+                        assert starts_offset >= class_offset + n_classes*2, ("class_token_range overlaps "
+                                                                              "starts_token_range")
                     else:
-                        assert starts_offset >= lengths_offset + max_length, "len_token_range overlaps starts_token_range"
+                        if shared_coord:
+                            assert starts_offset == lengths_offset, \
+                                "starts_offset and lengths_offset must be equal for shared_coord"
+                        else:
+                            assert starts_offset >= lengths_offset + max_length, ("len_token_range overlaps "
+                                                                                  "starts_token_range")
 
                 if multi_class or time_as_class or length_as_class:
                     n_classes_ = n_classes
@@ -521,8 +668,9 @@ def ipsc_post_process(ds_cfg, task_cfg, model_cfg, training):
             rle_from_json = ds_cfg.rle_from_json
             tf_name = db_name if rle_from_json else json_name
 
-            rle_lens = [str(info['rle_len']) for info in json_dict['videos' if is_video else 'images']]
-            mode_cfg.rle_lens = rle_lens
+            if not ds_cfg.rle_from_mask:
+                rle_lens = [str(info['rle_len']) for info in json_dict['videos' if is_video else 'images']]
+                mode_cfg.rle_lens = rle_lens
 
         elif is_video:
             try:
@@ -539,10 +687,12 @@ def ipsc_post_process(ds_cfg, task_cfg, model_cfg, training):
         ds_cfg[f'{mode}_file_pattern'] = os.path.join(db_root_dir, 'tfrecord', tf_name, 'shard*')
 
     if training:
-        ds_cfg.category_names_path = os.path.join(ds_cfg.train_db_root_dir, ds_cfg.train_filename_for_metrics)
+        ds_cfg.category_names_path = os.path.join(ds_cfg.train_db_root_dir, ds_cfg.json_dir,
+                                                  ds_cfg.train_filename_for_metrics)
         # ds_cfg.json_dict = ds_cfg.train_json_dict
     else:
-        ds_cfg.category_names_path = os.path.join(ds_cfg.eval_db_root_dir, ds_cfg.eval_filename_for_metrics)
+        ds_cfg.category_names_path = os.path.join(ds_cfg.eval_db_root_dir, ds_cfg.json_dir,
+                                                  ds_cfg.eval_filename_for_metrics)
         # ds_cfg.json_dict = ds_cfg.eval_json_dict
 
     ds_cfg.coco_annotations_dir_for_metrics = db_root_dir

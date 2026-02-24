@@ -1,0 +1,13 @@
+{
+"dataset": {
+	root_dir: "datasets/coco",
+	compressed: 1,
+	%mode%: {
+		start_id: 0,
+		end_id: 118286,
+	},
+  },
+"%mode%": {
+	save_suffix: ["coco_semantic_train2017",],
+  },
+}

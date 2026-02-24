@@ -1,0 +1,6 @@
+{
+  "eval": {
+	remote: 'grs',
+	proxy: 'z1',
+	},
+}

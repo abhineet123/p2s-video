@@ -220,10 +220,15 @@ def vis_json_ann(video, object_anns, category_id_to_name_map, image_dir, is_vide
                      color='green', thickness=1, norm=False, xywh=True)
             file_names_to_img[file_name] = img
 
+    _pause = 0
     for file_name, img in file_names_to_img.items():
         img = annotate(img, file_name)
         cv2.imshow('img', img)
-        cv2.waitKey(100)
+        k = cv2.waitKey(1 - _pause)
+        if k == 32:
+            _pause = 1 - _pause
+        elif k == 27:
+            return
 
 
 def debug_image_pipeline(dataset, train_transforms, batched_examples, model_dir, vis, training):
@@ -1283,6 +1288,9 @@ def close_video_writers(vid_writers):
 
 
 def get_video_writer(vid_path, codec='mp4v', crf=0, fps=5, cv=False, shape=None):
+    vid_dir = os.path.dirname(vid_path)
+    os.makedirs(vid_dir, exist_ok=True)
+
     if cv:
         assert shape is not None, "shape must be provided for OpenCV video writer"
 
@@ -1319,7 +1327,11 @@ def get_palette(class_to_col):
     for class_id in range(n_classes):
         col = class_to_col[class_id]
         if isinstance(col, str):
-            col = col_bgr[col][::-1]
+            try:
+                col = col_bgr[col][::-1]
+            except KeyError:
+                b, g, r = map(int, col.split('_'))
+                col = [r, g, b]
         palette_flat += list(col)
     return palette_flat
 
@@ -1364,7 +1376,9 @@ def visualize_mask(
         image_id_ = str(image_id.item())
 
     if '/' in image_id_:
-        seq_id_, image_id_ = image_id_.split('/')
+        image_id_split = image_id_.split('/')
+        image_id_ = image_id_split[-1]
+        seq_id_ = '/'.join(image_id_split[:-1])
         assert seq_id_ == seq_id, "seq_id mismatch"
 
     if not image_id_.endswith(img_ext):
@@ -1467,6 +1481,7 @@ def visualize_mask(
 
         seq_mask_dir = os.path.join(out_mask_dir, seq_id)
         os.makedirs(seq_mask_dir, exist_ok=True)
+        
         mask_path = os.path.join(seq_mask_dir, out_mask_name)
         save_mask_to_image(mask_path, mask, palette_flat, save_as_zip)
         # cv2.imwrite(mask_path, mask)
@@ -1587,7 +1602,7 @@ def visualize_boxes_and_labels_on_image_array(
         assert bboxes is not None and bboxes_rescaled is not None, \
             "both instance masks and boxes cannot be None"
         n_bboxes = len(bboxes)
-        masks = [None, ] * n_bboxes
+        # masks = [None, ] * n_bboxes
 
     box_id_to_display_str = collections.defaultdict(list)
     box_id_to_color = collections.defaultdict(str)
@@ -1895,6 +1910,7 @@ def add_image_summary_with_bbox(
         class_id_to_col=None,
         masks=None,
         csv_normalized=False,
+        img_ext='.jpg',
 ):
     n_images = len(image_ids)
     if masks is not None:
@@ -1934,6 +1950,8 @@ def add_image_summary_with_bbox(
             orig_size=orig_size_,
             class_id_to_col=class_id_to_col,
             csv_normalized=csv_normalized,
+            img_ext=img_ext,
+
         )
         new_images.append(image)
 

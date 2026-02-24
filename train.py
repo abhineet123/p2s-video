@@ -1,10 +1,11 @@
 import os
-import shutil
+# import shutil
 from absl import logging
 import time
 import numpy as np
+# from datetime import datetime
 
-import utils
+# import utils
 from models import model_utils
 
 
@@ -69,7 +70,7 @@ def run(cfg, train_datasets, val_datasets, tasks, train_steps, val_steps, steps_
             if cfg.eager:
                 progbar = tf.keras.utils.Progbar(val_steps)
 
-            for step_id in tf.range(val_steps):
+            for _ in tf.range(val_steps):
                 with tf.name_scope(''):
                     strategy.run(val_step, ([next(it) for it in data_iterators],))
                     # if val_outputs is not None:
@@ -105,6 +106,10 @@ def run(cfg, train_datasets, val_datasets, tasks, train_steps, val_steps, steps_
                     strategy.run(train_step, ([next(it) for it in data_iterators],))
 
                 if not cfg.eager:
+                    # time_stamp_str = datetime.now().strftime("%y%m%d_%H%M%S_%f")
+                    # time_stamp_str = tf.timestamp()
+                    # tf.print(time_stamp_str, ':', step_id, ' / ', steps_per_epoch, output_stream=f"file://{
+                    # progress_log_path}")
                     tf.print(step_id, ' / ', steps_per_epoch, output_stream=f"file://{progress_log_path}")
                     continue
 
@@ -142,7 +147,7 @@ def run(cfg, train_datasets, val_datasets, tasks, train_steps, val_steps, steps_
         # ckpt_vars_0 = utils.save_ckpt_vars(cfg.model_dir)
         is_seg = 'segmentation' in cfg.task.name
 
-        if is_seg:
+        if is_seg and cfg.dataset.rle_from_json:
             rle_lens = cfg.dataset.train.rle_lens
             rle_lens_str = '\n'.join(rle_lens)
             rle_lens_path = os.path.join(cfg.model_dir, "rle_lens.txt")
@@ -168,14 +173,16 @@ def run(cfg, train_datasets, val_datasets, tasks, train_steps, val_steps, steps_
         progress_log_path = os.path.join(cfg.model_dir, "progress_log.txt")
         if not cfg.eager:
             print(f"\n\nuse this to monitor the intra-epoch training progress:")
-            print(f"watch tail -1 {progress_log_path}\n\n")
+            print(f"watch tail -1 {progress_log_path}\n")
+            print(f'watch date -r {progress_log_path} -u +"%Y-%m-%d.%H-%M-%S.%3N"\n\n')
 
         while cur_step < train_steps:
             cur_epoch += 1
             # tf.print(f'Training epoch {cur_epoch} with {steps_per_epoch} steps...')
             with summary_writer.as_default():
                 train_multiple_steps(train_data_iters, tasks, progress_log_path)
-                os.remove(progress_log_path)
+                if os.path.exists(progress_log_path):
+                    os.remove(progress_log_path)
 
                 """
                 this check happens after the first forward pass because of deferred restoration 
@@ -218,7 +225,6 @@ def run(cfg, train_datasets, val_datasets, tasks, train_steps, val_steps, steps_
                     validate_multiple_steps(val_data_iters)
 
                     with tf.name_scope('val'):
-
                         val_metrics_dict = dict()
                         nan_metric = 0
                         for metric_name, metric_val in trainer.val_metrics.items():

@@ -26,15 +26,14 @@ def get_object_detection_train_transforms(
     instance_feature_names = ['bbox', 'label', 'area', 'is_crowd']
     object_coordinate_keys = ['bbox']
 
-    train_transforms = [
-        # D(name='scale_objs',
-        #   input='image',
-        #   object_coordinate_keys=object_coordinate_keys,),
-
-        # D(name='record_original_image_size'),
-    ]
+    train_transforms = []
+    if cfg.rotation:
+        train_transforms.append(
+            D(name='random_rotate',
+              inputs=['image'],
+              )
+        )
     if cfg.scale_jitter:
-        # print('annoying scale_jitter is enabled')
         train_transforms.append(
             D(name='scale_jitter',
               inputs=['image'],
@@ -43,7 +42,6 @@ def get_object_detection_train_transforms(
               max_scale=cfg.jitter_scale_max)
         )
     if cfg.fixed_crop:
-        # print('equally annoying fixed_crop is enabled')
         train_transforms.append(
             D(name='fixed_size_crop',
               inputs=['image'],
@@ -109,62 +107,107 @@ def get_semantic_segmentation_train_transforms(
         image_size: Tuple[int, int],
         max_seq_len,
         rle_from_mask,
+        debug,
 ):
     train_transforms = [
-        D(name='resize_image',
-          inputs=['image', 'mask'],
-          antialias=[True],
-          target_size=image_size),
+        # D(name='resize_image',
+        #   inputs=['image', 'mask'],
+        #   antialias=[True],
+        #   target_size=image_size),
     ]
     if rle_from_mask:
-        if cfg.scale_jitter:
-            # print('annoying scale_jitter is enabled')
+        if cfg.rotation:
             train_transforms.append(
-                D(name='scale_jitter',
+                D(name='random_rotate',
+                  inputs=['image', 'mask'],
+                  debug=debug,
+                  )
+            )
+        if cfg.random_scale:
+            train_transforms.append(
+                D(name='random_scale',
                   inputs=['image', 'mask'],
                   target_size=image_size,
-                  min_scale=cfg.jitter_scale_min,
-                  max_scale=cfg.jitter_scale_max)
+                  min_scale=cfg.scale_min,
+                  max_scale=cfg.scale_max,
+                  debug=debug,
+                  )
             )
         if cfg.fixed_crop:
-            # print('equally annoying fixed_crop is enabled')
             train_transforms.append(
                 D(name='fixed_size_crop',
                   inputs=['image', 'mask'],
                   target_size=image_size,
+                  debug=debug,
                   )
             )
-        else:
-            train_transforms.append(
-                D(name='resize_image',
-                  inputs=['image', 'mask'],
-                  antialias=[True],
-                  target_size=image_size)
-            )
+        # else:
+        #     train_transforms.append(
+        #         D(name='resize_image',
+        #           inputs=['image', 'mask'],
+        #           antialias=[True],
+        #           target_size=image_size)
+        #     )
 
-        train_transforms += [
+        if cfg.vert_flip:
+            train_transforms.append(
             D(name='random_vertical_flip',
               inputs=['image', 'mask'],
-              ),
+              debug=debug,
+              )
+            )
+        if cfg.horz_flip:
+            train_transforms.append(
             D(name='random_horizontal_flip',
               inputs=['image', 'mask'],
-              ),
-            D(name='pad_image_to_max_size',
-              inputs=['image', 'mask'],
-              target_size=image_size,
-              ),
-        ]
+              debug=debug,
+              )
+            )
     else:
         train_transforms += [
-            D(name='pad_image_to_max_size',
-              inputs=['image', ],
-              target_size=image_size,
+            # D(name='pad_image_to_max_size',
+            #   inputs=['image', ],
+            #   target_size=image_size,
+            #   ),
+            D(name='truncate_or_pad_to_max_instances',
+              inputs=['rle', ],
+              max_instances=max_seq_len,
+              debug=debug,
               ),
+
+        ]
+    return train_transforms
+
+def get_semantic_segmentation_eval_transforms(
+        image_size: Tuple[int, int],
+        max_seq_len,
+        rle_from_mask,
+        debug,
+):
+    eval_transforms = [
+        D(name='resize_image',
+          inputs=['image', ],
+          antialias=[True],
+          target_size=image_size,
+          debug=debug,
+          ),
+
+    ]
+    eval_transforms += [
+        D(name='pad_image_to_max_size',
+          inputs=['image', ],
+          target_size=image_size,
+          ),
+    ]
+    if rle_from_mask:
+        pass
+    else:
+        eval_transforms += [
             D(name='truncate_or_pad_to_max_instances',
               inputs=['rle', ],
               max_instances=max_seq_len),
         ]
-    return train_transforms
+    return eval_transforms
 
 
 def get_video_detection_train_transforms(
@@ -255,6 +298,31 @@ def get_video_detection_train_transforms(
     return train_transforms
 
 
+def get_video_detection_eval_transforms(
+        cfg,
+        image_size: Tuple[int, int],
+        length: int,
+        max_instances_per_image: int,
+):
+    instance_feature_names = ['bbox', 'class_id', 'class_name',
+                              'area', 'is_crowd']
+    return [
+        # D(name='record_original_video_size'),
+        D(name='resize_video',
+          inputs=['video'],
+          length=length,
+          antialias=[True],
+          target_size=image_size),
+        D(name='pad_video_to_max_size',
+          length=length,
+          inputs=['video'],
+          target_size=image_size,
+          object_coordinate_keys=['bbox']),
+        D(name='truncate_or_pad_to_max_instances',
+          inputs=instance_feature_names,
+          max_instances=max_instances_per_image),
+    ]
+
 def get_static_video_detection_train_transforms(
         cfg,
         target_size,
@@ -342,33 +410,6 @@ def get_static_video_detection_train_transforms(
     ]
     return train_transforms
 
-
-def get_video_detection_eval_transforms(
-        cfg,
-        image_size: Tuple[int, int],
-        length: int,
-        max_instances_per_image: int,
-):
-    instance_feature_names = ['bbox', 'class_id', 'class_name',
-                              'area', 'is_crowd']
-    return [
-        # D(name='record_original_video_size'),
-        D(name='resize_video',
-          inputs=['video'],
-          length=length,
-          antialias=[True],
-          target_size=image_size),
-        D(name='pad_video_to_max_size',
-          length=length,
-          inputs=['video'],
-          target_size=image_size,
-          object_coordinate_keys=['bbox']),
-        D(name='truncate_or_pad_to_max_instances',
-          inputs=instance_feature_names,
-          max_instances=max_instances_per_image),
-    ]
-
-
 def get_static_video_detection_eval_transforms(
         cfg,
         image_size: Tuple[int, int],
@@ -393,32 +434,6 @@ def get_static_video_detection_eval_transforms(
           inputs=instance_feature_names,
           max_instances=max_instances_per_image),
     ]
-
-
-def get_semantic_segmentation_eval_transforms(
-        image_size: Tuple[int, int],
-        max_seq_len,
-        rle_from_mask,
-):
-    eval_transforms = [
-        D(name='resize_image',
-          inputs=['image', ],
-          antialias=[True],
-          target_size=image_size),
-    ]
-    if rle_from_mask:
-        pass
-    else:
-        eval_transforms += [
-            D(name='pad_image_to_max_size',
-              inputs=['image', ],
-              target_size=image_size,
-              ),
-            D(name='truncate_or_pad_to_max_instances',
-              inputs=['rle', ],
-              max_instances=max_seq_len),
-        ]
-    return eval_transforms
 
 
 def get_video_segmentation_train_transforms(

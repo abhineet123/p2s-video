@@ -1,0 +1,12 @@
+{
+  "dataset": {
+	transforms:{
+		rotation: 1,
+
+	},
+  },
+  "train": {
+    "save_suffix": ['rot',],
+  }
+
+  }

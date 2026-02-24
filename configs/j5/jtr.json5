@@ -1,6 +1,6 @@
 {
   "dataset": {
-	transforms:{
+	transforms: {
 		scale_jitter: 1,
 		fixed_crop: 1,
 		scale_jitter: %%0%%,

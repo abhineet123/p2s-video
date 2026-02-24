@@ -1,0 +1,20 @@
+{
+  mhd: 1,
+  dataset: {
+    starts_2d: 1,
+    length_as_class: 0,
+    shared_coord: 0,
+    multi_class: 1,
+  },
+  model: {
+    coord_vocab_shift: 5,
+    len_vocab_shift: 5,
+    class_vocab_shift: 5,
+  },
+  train: {
+    save_suffix: ['mhd',],
+    mhd_loss_weights: '%%0%%',
+    save_suffix: ['mhd_%%0%%',],
+  },
+
+}

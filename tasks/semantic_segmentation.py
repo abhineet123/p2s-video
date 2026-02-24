@@ -48,6 +48,7 @@ class TaskSemanticSegmentation(task_lib.Task):
 
     def preprocess_batched(self, batched_examples, training):
         config = self.config.task
+        rle_from_mask = self.config.dataset.rle_from_mask
         if self.config.debug == 2:
             batched_examples = vis_utils.debug_image_pipeline(
                 self.dataset,
@@ -57,34 +58,73 @@ class TaskSemanticSegmentation(task_lib.Task):
                 model_dir=self.config.model_dir,
                 training=training)
 
+        try:
+            cls_eq = self.config.task.class_equal_weight
+        except AttributeError:
+            cls_eq = 0
+
         image = batched_examples['image']
+        # batch_size = self.config.train.batch_size if training else self.config.eval.batch_size
+        batch_size = tf.shape(image)[0]
+
         # height = batched_examples['image/height']
         # width = batched_examples['image/width']
-
-        if self.config.dataset.rle_from_mask:
+        if rle_from_mask:
             mask = batched_examples['mask']
-            response_seq = task_utils.mask_to_rle_tokens_tf(
-                image, mask, self.config, self.class_id_to_col, training)
+            response_seq, class_masks = task_utils.mask_to_rle_tokens_tf(
+                image, mask, self.config, self.class_id_to_col, mhd=0, training=training)
         else:
             response_seq = batched_examples['rle']
+            if training and cls_eq > 0:
+                class_masks = batched_examples['class_mask']
+
         token_weights = tf.ones_like(response_seq, dtype=tf.float32)
 
-        if self.config.debug:
-            mask_vid_paths = batched_examples['mask_vid_path'].numpy()
-            images = batched_examples['image'].numpy()
-            img_ids = batched_examples['image/id'].numpy()
-            frame_ids = batched_examples['frame_id'].numpy()
-            rles = response_seq.numpy()
+        if training and cls_eq > 0:
+            def process_batch_item(batch_id, token_weights_ta):
+                token_weights_adjusted_ = token_weights[batch_id, ...]
+                class_mask_ = class_masks[batch_id, ...]
 
-            task_utils.check_rle(self.config, mask_vid_paths, images, img_ids, frame_ids, rles,
-                                 training=True, class_id_to_col=self.class_id_to_col)
+                # remove invalid indices marked by zeros
+                class_token_idxs_ = tf.where(class_mask_)
+                if tf.size(class_token_idxs_) > 0:
+                    class_token_idxs_exp_ = tf.expand_dims(class_token_idxs_, axis=1)
+                    class_token_weights_ = tf.zeros_like(class_token_idxs_, dtype=tf.float32) + cls_eq
+                    token_weights_adjusted_ = tf.tensor_scatter_nd_update(
+                        token_weights_adjusted_,
+                        class_token_idxs_exp_,
+                        class_token_weights_)
+                # token_weights_ta.append(token_weights_adjusted_)
+                token_weights_ta = token_weights_ta.write(batch_id, token_weights_adjusted_)
 
-        # response_seq, token_weights = build_response_seq_from_rle(
-        #     batched_examples['rle'],
-        #     config.starts_bins,
-        #     config.lengths_bins,
-        #     mconfig.coord_vocab_shift,
-        # )
+                return batch_id + 1, token_weights_ta
+
+            def batch_condition(batch_id, rle_tokens_ta):
+                return tf.less(batch_id, batch_size)
+
+            token_weights_ta = tf.TensorArray(tf.float32, size=batch_size)
+            # Process all items in batch
+            _, token_weights_ta = tf.while_loop(
+                batch_condition,
+                process_batch_item,
+                [0, token_weights_ta],
+                parallel_iterations=1
+            )
+            token_weights = token_weights_ta.stack()
+
+        # if self.config.debug:
+        # mask_vid_paths = batched_examples['mask_vid_path'].numpy()
+        # mask_image_paths = batched_examples['mask_image_path'].numpy()
+        # mask_paths = mask_vid_paths if mask_vid_paths[0] else mask_image_paths
+        #
+        # images = batched_examples['image'].numpy()
+        # masks = batched_examples['mask'].numpy().squeeze() if rle_from_mask else None
+        # img_ids = batched_examples['image/id'].numpy()
+        # frame_ids = batched_examples['frame_id'].numpy()
+        # rles = response_seq.numpy()
+
+        # task_utils.check_rle(self.config, mask_paths, images, masks, img_ids, frame_ids, rles,
+        #                      training=True, class_id_to_col=self.class_id_to_col)
 
         prompt_seq = task_utils.build_prompt_seq_from_task_id(
             task_vocab_id=self.task_vocab_id,
@@ -119,6 +159,7 @@ class TaskSemanticSegmentation(task_lib.Task):
             tf.zeros_like(token_weights) + config.eos_token_weight,
             token_weights)
 
+        """output goes to ar_model.compute_loss"""
         return batched_examples, input_seq, target_seq, token_weights
 
     def infer(self, model, preprocessed_outputs):
@@ -143,8 +184,15 @@ class TaskSemanticSegmentation(task_lib.Task):
         orig_image_size = example['orig_image_size']
         unpadded_image_size = example['unpadded_image_size']
         frame_id = example['frame_id']
+        rle_from_mask = self.config.dataset.rle_from_mask
 
-        gt_rle = example['rle']
+        if rle_from_mask:
+            masks = batched_examples['mask']
+            gt_rle, _ = task_utils.mask_to_rle_tokens_tf(
+                images, masks, self.config, self.class_id_to_col, training)
+        else:
+            gt_rle = example['rle']
+
         vid_path = example['vid_path']
         mask_vid_path = example['mask_vid_path']
 
@@ -169,6 +217,7 @@ class TaskSemanticSegmentation(task_lib.Task):
                         summary_tag='eval',
                         ret_results=False,
                         csv_data=None,
+                        save_as_zip=False,
                         **kwargs
                         ):
 
@@ -212,6 +261,7 @@ class TaskSemanticSegmentation(task_lib.Task):
 
         mask_from_logits_ = self.config.eval.mask_from_logits
         starts_2d = self.config.dataset.starts_2d
+        diff_mask = self.config.dataset.diff_mask
         length_as_class = self.config.dataset.length_as_class
         flat_order = self.config.dataset.flat_order
 
@@ -235,7 +285,8 @@ class TaskSemanticSegmentation(task_lib.Task):
 
             assert '/' in image_id_, f"invalid image_id_: {image_id_}"
 
-            seq = image_id_.split('/')[0]
+            """last element of image_id is the name of the image, everything else is the seq name"""
+            seq = '/'.join(image_id_.split('/')[:-1])
 
             orig_size_ = tuple(orig_size_)
             n_rows, n_cols = orig_size_
@@ -255,6 +306,8 @@ class TaskSemanticSegmentation(task_lib.Task):
             #     mask_from_file = vid_masks[0]
             #     mask_from_file_sub = vid_masks_sub[0]
 
+            np.savetxt('logits.csv', logits_, fmt='%.5f', delimiter=',')
+
             if instance_wise:
                 mask_rec, instance_info_rec, rle_rec_cmp = task_utils.mask_from_instance_wise_tokens(
                     rle_tokens=rle_,
@@ -269,6 +322,7 @@ class TaskSemanticSegmentation(task_lib.Task):
                     # out-of-place tokens and such (especially early on in a training and)
                     allow_extra=True,
                     ignore_invalid=True,
+                    max_seq_len=max_seq_len,
                 )
                 obj_mask_rec, obj_class, obj_score, mask_instance = instance_info_rec
                 obj_masks_batch.append(np.asarray(obj_mask_rec, dtype=bool))
@@ -287,6 +341,7 @@ class TaskSemanticSegmentation(task_lib.Task):
                     # There should be no invalid or out of place tokens in the GT
                     allow_extra=False,
                     ignore_invalid=False,
+                    max_seq_len=max_seq_len,
                 )
             else:
                 mask_rec, rle_rec_cmp = task_utils.mask_from_tokens(
@@ -302,6 +357,9 @@ class TaskSemanticSegmentation(task_lib.Task):
                     length_as_class=length_as_class,
                     flat_order=flat_order,
                     ignore_invalid=True,
+                    diff_mask=diff_mask,
+                    max_seq_len=None,
+                    n_classes=n_classes,
                 )
 
                 mask_gt, rle_gt_cmp = task_utils.mask_from_tokens(
@@ -316,10 +374,13 @@ class TaskSemanticSegmentation(task_lib.Task):
                     max_length=max_length,
                     length_as_class=length_as_class,
                     flat_order=flat_order,
+                    ignore_invalid=False,
+                    diff_mask=diff_mask,
+                    max_seq_len=max_seq_len,
+                    n_classes=n_classes,
                 )
-
                 if mask_from_logits_:
-                    mask_logits, rle_logits_cmp = task_utils.mask_from_logits(
+                    mask_logits, rle_logits_cmp = task_utils.mask_from_token_logits(
                         rle_logits=logits_,
                         shape=(n_rows, n_cols),
                         max_length=max_length,
@@ -334,16 +395,16 @@ class TaskSemanticSegmentation(task_lib.Task):
                         max_seq_len=max_seq_len,
                         vocab_size=vocab_size,
                         allow_overlap=allow_overlap,
+                        diff_mask=diff_mask,
+                        ignore_invalid=True,
                     )
 
-            if self.config.debug:
-                # mask_from_file = task_utils.mask_vis_to_id(mask_from_file, n_classes, copy=True)
-                mask_from_file_sub = task_utils.mask_vis_to_id(
-                    mask_from_file_sub, n_classes, copy=True)
-                if not np.array_equal(mask_from_file_sub, mask_gt):
-                    raise AssertionError("mask_from_file_sub - mask_gt mismatch")
-
-            n_classes = len(self.class_id_to_col)
+            # if self.config.debug:
+            #     # mask_from_file = task_utils.mask_vis_to_id(mask_from_file, n_classes, copy=True)
+            #     mask_from_file_sub = task_utils.mask_vis_to_id(
+            #         mask_from_file_sub, n_classes, copy=True)
+            #     if not np.array_equal(mask_from_file_sub, mask_gt):
+            #         raise AssertionError("mask_from_file_sub - mask_gt mismatch")
 
             seq_img_infos = json_vid_info[seq]
             if seq_img_infos:
@@ -379,6 +440,7 @@ class TaskSemanticSegmentation(task_lib.Task):
                 orig_size=orig_size_,
                 show=show,
                 palette_flat=self.palette_flat,
+                save_as_zip=save_as_zip,
             )
 
             seq_img_infos.append(

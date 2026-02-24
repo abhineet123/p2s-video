@@ -1,0 +1,12 @@
+{
+"dataset": {
+	root_dir: "datasets/cityscapes",
+	compressed: 1,
+	"%mode%": {
+		split_suffix: "%0%",
+	},
+  },
+"%mode%": {
+	db_prefix: ["ctscp",],
+  },
+}

@@ -72,36 +72,30 @@ class IPSCObjectDetectionTFRecordDataset(tf_record.TFRecordDataset):
           example: `dict` of relevant features and labels.
         """
 
-        img_id = example['image/source_id']
-        height = example['image/height']
-        width = example['image/width']
-        image = decode_utils.decode_image(example)
+        new_example = {
+            'image': decode_utils.decode_image(example),
+            'image/id': example['image/source_id'],
+            'label': example['image/object/class/label'],
+            'area': decode_utils.decode_areas(example),
+            'is_crowd': decode_utils.decode_is_crowd(example),
+            'bbox': utils.scale_points(
+                decode_utils.decode_boxes(example),
+                1. / utils.tf_float32([example['image/height'], example['image/width']])),
+        }
+        new_example["orig_image_size"] = tf.shape(new_example["image"])[:2]
 
-        orig_image_size = tf.shape(image)[:2]
+        # orig_image_size = tf.shape(image)[:2]
         # orig_image_size2 = [height, width]
-
         # target_size = self.task_config.image_size
-        target_size = self.config.target_size
 
-        if target_size is not None:
-            image = tf.image.resize(
-                image, target_size, method='bilinear',
+        if self.config.target_size is not None:
+            new_example["image"] = tf.image.resize(
+                new_example["image"], self.config.target_size, method='bilinear',
                 antialias=False, preserve_aspect_ratio=False)
-
-        resized_image_size = tf.shape(image)[:2]
 
         # tf.print(f'orig_image_size: {orig_image_size}')
         # tf.print(f'orig_image_size2: {orig_image_size2}')
         # tf.print(f'resized_image_size: {resized_image_size}')
-
-        new_example = {
-            'image': image,
-            'orig_image_size': orig_image_size,
-            'image/id': img_id,
-            'image/resized': resized_image_size,
-        }
-
-        bbox = decode_utils.decode_boxes(example)
 
         # hratio = tf.cast(target_size[0], tf.float32) / tf.cast(height, tf.float32)
         # wratio = tf.cast(target_size[1], tf.float32) / tf.cast(width, tf.float32)
@@ -109,15 +103,7 @@ class IPSCObjectDetectionTFRecordDataset(tf_record.TFRecordDataset):
         # scale = 1. / utils.tf_float32(target_size)
 
         # border_height, border_width = padded_height - height, padded_width - width
-        scale = 1. / utils.tf_float32([height, width])
-        bbox = utils.scale_points(bbox, scale)
-
-        new_example.update({
-            'label': example['image/object/class/label'],
-            'bbox': bbox,
-            'area': decode_utils.decode_areas(example),
-            'is_crowd': decode_utils.decode_is_crowd(example),
-        })
+        new_example['image/resized'] = tf.shape(new_example["image"])[:2]
         return new_example
 
 
@@ -138,14 +124,23 @@ class IPSCSemanticSegmentationTFRecordDataset(tf_record.TFRecordDataset):
 
             rles = [' '.join(map(str, img['rle'])) for img in json_dict['images']]
             rles_tensor = tf.constant(rles, dtype=tf.string)
-
-            rle_lens = [img['rle_len'] for img in json_dict['images']]
-            rle_lens_tensor = tf.constant(rle_lens, dtype=tf.int64)
-
             init_rle = tf.lookup.KeyValueTensorInitializer(
                 keys_tensor, rles_tensor)
             self.img_id_to_rle = tf.lookup.StaticHashTable(init_rle, default_value='')
 
+            try:
+                class_token_idxs = [' '.join(map(str, img['class_token_idxs'])) for img in json_dict['images']]
+            except KeyError:
+                self.img_id_to_class_token_idxs = None
+                print('\njson does not have class_token_idxs\n')
+            else:
+                class_token_idxs_tensor = tf.constant(class_token_idxs, dtype=tf.string)
+                init_class_token_idxs = tf.lookup.KeyValueTensorInitializer(
+                    keys_tensor, class_token_idxs_tensor)
+                self.img_id_to_class_token_idxs = tf.lookup.StaticHashTable(init_class_token_idxs, default_value='')
+
+            rle_lens = [img['rle_len'] for img in json_dict['images']]
+            rle_lens_tensor = tf.constant(rle_lens, dtype=tf.int64)
             init_rle_len = tf.lookup.KeyValueTensorInitializer(
                 keys_tensor, rle_lens_tensor)
             self.img_id_to_rle_len = tf.lookup.StaticHashTable(init_rle_len, default_value=-1)
@@ -160,7 +155,7 @@ class IPSCSemanticSegmentationTFRecordDataset(tf_record.TFRecordDataset):
             'image/width': tf.io.FixedLenFeature((1,), tf.int64, -1),
             'image/filename': tf.io.FixedLenFeature((), tf.string, ''),
             'image/n_runs': tf.io.FixedLenFeature((), tf.int64, -1),
-            'image/mask_file_name': tf.io.FixedLenFeature((), tf.string, ''),
+            'image/mask_image_path': tf.io.FixedLenFeature((), tf.string, ''),
             'image/vid_path': tf.io.FixedLenFeature((), tf.string, ''),
             'image/mask_vid_path': tf.io.FixedLenFeature((), tf.string, ''),
             'image/frame_id': tf.io.FixedLenFeature((), tf.int64, -1),
@@ -196,7 +191,7 @@ class IPSCSemanticSegmentationTFRecordDataset(tf_record.TFRecordDataset):
 
     def filter_example(self, example, training):
         # probabilistically filter out examples with no foreground
-        if training:
+        if training and not self.config.rle_from_mask:
             if example['image/n_runs'] > 0:
                 return True
             rand_num = tf.random.uniform(shape=[1])
@@ -211,7 +206,7 @@ class IPSCSemanticSegmentationTFRecordDataset(tf_record.TFRecordDataset):
         frame_id = example['image/frame_id']
         vid_path = example['image/vid_path']
         mask_vid_path = example['image/mask_vid_path']
-        mask_file_name = example['image/mask_file_name']
+        mask_image_path = example['image/mask_image_path']
         height = example['image/height']
         width = example['image/width']
 
@@ -231,7 +226,7 @@ class IPSCSemanticSegmentationTFRecordDataset(tf_record.TFRecordDataset):
             'frame_id': frame_id,
             'vid_path': vid_path,
             'mask_vid_path': mask_vid_path,
-            'mask_file_name': mask_file_name,
+            'mask_image_path': mask_image_path,
         }
 
         # print(f'rle_from_mask: {self.config.rle_from_mask}')
@@ -250,10 +245,33 @@ class IPSCSemanticSegmentationTFRecordDataset(tf_record.TFRecordDataset):
                     lambda: tf.strings.to_number(tf.strings.split(rle_str, sep=' '),
                                                  out_type=tf.int64)
                 )
+                try:
+                    cls_eq = self.task_config.class_equal_weight
+                except AttributeError:
+                    cls_eq = 0
+                if training and cls_eq > 0:
+                    assert self.img_id_to_class_token_idxs is not None, "json must have class_token_idxs to use cls_eq"
+                    class_token_idxs_str = self.img_id_to_class_token_idxs.lookup(img_id)
+                    class_token_idxs = tf.cond(
+                        tf.strings.length(class_token_idxs_str) == 0,
+                        lambda: tf.convert_to_tensor([], dtype=tf.int64),
+                        lambda: tf.strings.to_number(tf.strings.split(class_token_idxs_str, sep=' '),
+                                                     out_type=tf.int64)
+                    )
+                    new_example['class_token_idxs'] = class_token_idxs
             else:
                 rle = example['image/rle']
 
             new_example['rle'] = rle
+
+        if self.config.target_size is not None:
+            new_example["image"] = tf.image.resize(
+                new_example["image"], self.config.target_size, method='bilinear',
+                antialias=False, preserve_aspect_ratio=False)
+            if self.config.rle_from_mask:
+                new_example["mask"] = tf.image.resize(
+                    new_example["mask"], self.config.target_size, method='nearest',
+                    antialias=False, preserve_aspect_ratio=False)
 
         return new_example
 

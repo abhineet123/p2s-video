@@ -321,12 +321,14 @@ def get_ar_mask(seq_len, dtype=tf.float32):
       tensor of shape [1, 1, seq_len, seq_len] with ones for locations to be
       masked out.
     """
+
     """
     tf.linalg.band_part: set everything outside a band surrounding the principal diagonal to 0   
     num_lower=-1 skips setting the part below the principal diagonal to 0
     num_upper=0 means that everything above the principal diagonal is set to 0 
     (num_upper=1 would allow a band of size 1 above the diagonal)    
     """
+
     valid_locs = tf.linalg.band_part(
         tf.ones([seq_len, seq_len], dtype=dtype), num_lower=-1, num_upper=0)
     """same mask for each batch item and each token in that item"""
@@ -691,6 +693,7 @@ class TransformerDecoderLayer(tf.keras.layers.Layer):  # pylint: disable=missing
                 q_size, k_size = tf.shape(x)[1], tf.shape(cache)[1]
                 mask_self = tf.concat([tf.ones([1, 1, q_size, k_size]), mask_self], -1)
                 kv_ln = tf.concat([cache, x_ln], axis=1)
+            """kv_ln = x_ln if cache is None (which is the case during training)"""
             x_res = self.self_mha(x_ln, kv_ln, kv_ln, mask_self, training=training)
             x = x + self.dropp(x_res, training)
         if self.cross_attention:
@@ -779,7 +782,7 @@ class VisionTransformer(tf.keras.layers.Layer):  # pylint: disable=missing-docst
             filters=dim, kernel_size=patch_size, strides=patch_size,
             padding='VALID', use_bias=True, name='stem_conv')
         if self.freeze_backbone:
-            self.stem_conv.trainable=False
+            self.stem_conv.trainable = False
 
         self.stem_ln = tf.keras.layers.LayerNormalization(
             epsilon=1e-6, name='stem_ln')
@@ -840,7 +843,7 @@ class ResNetTransformer(tf.keras.layers.Layer):  # pylint: disable=missing-docst
             sk_ratio=resnet_sk_ratio,
             variant=resnet_variant)
         if self.freeze_backbone:
-            self.resnet.trainable=False
+            self.resnet.trainable = False
 
         self.dropout = tf.keras.layers.Dropout(drop_units)
         self.stem_projection = tf.keras.layers.Dense(dim, name='stem_projection')
@@ -980,12 +983,19 @@ class AutoregressiveDecoder(tf.keras.layers.Layer):  # pylint: disable=missing-d
         inp_embedding, outp_embedding, outp_bias = self.get_token_emb()
 
         token_emb = tf.gather(inp_embedding, tokens) + seq_pos_emb
+        """mask for self attention"""
         mask_self = 1. - get_ar_mask(seqlen, token_emb.dtype)
         """
+        caches = None
         ignoring the cache returned from decoder
+        
+        mask_cross = None
+        no masking for cross attention
         """
         outputs, _ = self.decoder(
-            token_emb, encoded, None, mask_self, None, training)
+            token_emb, encoded, caches=None,
+            mask_self=mask_self, mask_cross=None,
+            training=training)
         outputs = self.output_ln(outputs)
         logits = tf.matmul(outputs, outp_embedding, transpose_b=True)
         if self.output_bias:
@@ -1010,8 +1020,9 @@ class AutoregressiveDecoder(tf.keras.layers.Layer):  # pylint: disable=missing-d
         def loop_body(step, caches, tokens, logits, is_prompt=False):
             if is_prompt:
                 """
-                since step tells us whether is_prompt is on, it is unclear why we even need this separate flag
-                unless it was to be called with ste=0 without is_prompt which doesn't seem to be the case either
+                since step tells us whether is_prompt is on, it is unclear why we even need 
+                this separate flag unless it was to be called with ste=0 without is_prompt 
+                which doesn't seem to be the case either
                 """
                 assert step == 0, "step must be 0 for is_prompt"
                 token_emb = tf.gather(inp_embedding, tf.transpose(tokens[:prompt_len]))
@@ -1064,6 +1075,13 @@ class AutoregressiveDecoder(tf.keras.layers.Layer):  # pylint: disable=missing-d
                     caches, cache_indices, caches_out)
             else:
                 caches = tf.tensor_scatter_nd_update(caches, [[step]], caches_out)
+            """
+            tokens[next_step] = next_token
+            logits[next_step] = next_logits
+            
+            accumulate tokens and logits one by one
+            tokens and logits are initialized with all zeros
+            """
             tokens = tf.tensor_scatter_nd_update(tokens, [[next_step]], [next_token])
             logits = tf.tensor_scatter_nd_update(logits, [[next_step]], [next_logits])
             return (next_step, caches, tokens, logits)
@@ -1089,13 +1107,16 @@ class AutoregressiveDecoder(tf.keras.layers.Layer):  # pylint: disable=missing-d
 
         step = 0
         """
-        called separately to handle the special case of prompt tokens
+        called separately to handle the special case of prompt tokens since causal mask needs 
+        to be applied only to prompt tokens
+        
         all prompt tokens processed together as a group while non-prompt tokens are processed 
         one at a time
-        prompt can be thought of as a multi-token generalization of SOS token
+        prompt can be thought of as a multi-token generalization of SOS token        
         """
         step, caches_var, tokens_var, logits_var = loop_body(
             step, caches_var, tokens_var, logits_var, is_prompt=True)
+
         if seq_len > prompt_len:
             step, caches_var, tokens_var, logits_var = tf.while_loop(
                 cond=cond, body=loop_body,
@@ -1104,6 +1125,323 @@ class AutoregressiveDecoder(tf.keras.layers.Layer):  # pylint: disable=missing-d
         sampled_tokens = tf.transpose(tokens_var[prompt_len:], [1, 0])
         sampled_logits = tf.transpose(logits_var[prompt_len:], [1, 0, 2])
         return sampled_tokens, sampled_logits
+
+
+class AutoregressiveMHD(tf.keras.layers.Layer):  # pylint: disable=missing-docstring
+
+    def __init__(self,
+                 defer_vocab,
+                 defer_seq,
+                 coord_vocab_size,
+                 len_vocab_size,
+                 class_vocab_size,
+                 shared_xyl,
+                 max_seq_len,
+                 num_layers,
+                 dim,
+                 mlp_ratio,
+                 num_heads,
+                 drop_path=0.1,
+                 drop_units=0.1,
+                 drop_att=0.,
+                 pos_encoding='learned',
+                 shared_embedding=True,
+                 output_bias=True,
+                 cross_attention=True,
+                 **kwargs):
+        super(AutoregressiveMHD, self).__init__(**kwargs)
+        self.defer_vocab = defer_vocab
+        self.defer_seq = defer_seq
+
+        self.coord_vocab_size = coord_vocab_size
+        self.len_vocab_size = len_vocab_size
+        self.class_vocab_size = class_vocab_size
+        self.shared_xyl = shared_xyl
+
+        self.max_seq_len = max_seq_len
+        self.num_layers = num_layers
+        self.dim = dim
+        self.shared_embedding = shared_embedding
+        self.output_bias = output_bias
+
+        self.decoder = TransformerDecoder(
+            num_layers, dim, mlp_ratio, num_heads,
+            drop_path, drop_units, drop_att,
+            cross_attention=cross_attention, name='transformer_decoder')
+
+        self.output_ln = tf.keras.layers.LayerNormalization(
+            epsilon=1e-6, name='ouput_ln')
+
+        if self.defer_seq:
+            add_seq_pos_emb(self, pos_encoding, max_seq_len, dim, suffix='deferred')
+        else:
+            add_seq_pos_emb(self, pos_encoding, max_seq_len, dim)
+
+        self.set_vocab_token_emb(self.coord_vocab_size, 'x', )
+        self.set_vocab_token_emb(self.class_vocab_size, 'c', )
+
+        if self.shared_xyl:
+            assert self.coord_vocab_size == self.len_vocab_size, \
+                "coord_vocab_size and len_vocab_size must be same for shared_xyl"
+            print('\nsharing embedding weights between start_x, start_y, length tokens\n')
+        else:
+            self.set_vocab_token_emb(self.coord_vocab_size, 'y', )
+            self.set_vocab_token_emb(self.len_vocab_size, 'l', )
+
+    def get_seq_pos_emb(self):
+        return self.seq_pos_emb_deferred if self.defer_seq else self.seq_pos_emb
+
+    def set_vocab_token_emb(self, vocab_size, vocab_type):
+        name_prefix = self.name
+        initializer = get_variable_initializer()
+
+        outp_bias = f'outp_bias_{vocab_type}'
+        token_embedding = f'token_embedding_{vocab_type}'
+        inp_token_embedding = f'inp_token_embedding_{vocab_type}'
+        outp_token_embedding = f'outp_token_embedding_{vocab_type}'
+
+        if self.defer_vocab:
+            outp_bias = f'{outp_bias}_deferred'
+            token_embedding = f'{token_embedding}_deferred'
+            inp_token_embedding = f'{inp_token_embedding}_deferred'
+            outp_token_embedding = f'{outp_token_embedding}_deferred'
+
+        if self.shared_embedding:
+            setattr(self, token_embedding, self.add_weight(
+                shape=[vocab_size, self.dim],
+                initializer=initializer,
+                name=f'{name_prefix}/{token_embedding}'),
+                    )
+        else:
+            setattr(self, inp_token_embedding, self.add_weight(
+                shape=[vocab_size, self.dim],
+                initializer=initializer,
+                name=f'{name_prefix}/{inp_token_embedding}'),
+                    )
+            setattr(self, outp_token_embedding, self.add_weight(
+                shape=[vocab_size, self.dim],
+                initializer=initializer,
+                name=f'{name_prefix}/{outp_token_embedding}'),
+                    )
+        if self.output_bias:
+            setattr(self, outp_bias, self.add_weight(
+                shape=[vocab_size],
+                initializer=initializer,
+                name=f'{name_prefix}/{outp_bias}'),
+                    )
+
+    def get_vocab_token_emb(self, vocab_type):
+        outp_bias = f'outp_bias_{vocab_type}'
+        token_embedding = f'token_embedding_{vocab_type}'
+        inp_token_embedding = f'inp_token_embedding_{vocab_type}'
+        outp_token_embedding = f'outp_token_embedding_{vocab_type}'
+        if self.defer_vocab:
+            outp_bias = f'{outp_bias}_deferred'
+            token_embedding = f'{token_embedding}_deferred'
+            inp_token_embedding = f'{inp_token_embedding}_deferred'
+            outp_token_embedding = f'{outp_token_embedding}_deferred'
+
+        if self.shared_embedding:
+            inp_embedding = outp_embedding = getattr(self, token_embedding)
+        else:
+            inp_embedding = getattr(self, inp_token_embedding)
+            outp_embedding = getattr(self, outp_token_embedding)
+
+        outp_bias = getattr(self, outp_bias)
+
+        return inp_embedding, outp_embedding, outp_bias
+
+    def get_logits(self, encoded, tokens, inp_embedding, outp_embedding, outp_bias, training):
+
+        _, seqlen = get_shape(tokens)
+        seq_pos_emb_ = self.get_seq_pos_emb()
+        seq_pos_emb = tf.expand_dims(seq_pos_emb_[:seqlen], 0)
+
+        token_emb = tf.gather(inp_embedding, tokens) + seq_pos_emb
+        """mask for self attention"""
+        mask_self = 1. - get_ar_mask(seqlen, token_emb.dtype)
+
+        outputs, _ = self.decoder(
+            token_emb, encoded, caches=None,
+            mask_self=mask_self, mask_cross=None,
+            training=training)
+        outputs = self.output_ln(outputs)
+
+        logits = tf.matmul(outputs, outp_embedding, transpose_b=True)
+        if self.output_bias:
+            logits = tf.nn.bias_add(logits, outp_bias)
+
+        return logits
+
+    def call(self, tokens_x, tokens_y, tokens_l, tokens_c, encoded, training):
+        inp_embedding_x, outp_embedding_x, outp_bias_x = self.get_vocab_token_emb('x')
+        if self.shared_xyl:
+            inp_embedding_y, outp_embedding_y, outp_bias_y = inp_embedding_x, outp_embedding_x, outp_bias_x
+            inp_embedding_l, outp_embedding_l, outp_bias_l = inp_embedding_x, outp_embedding_x, outp_bias_x
+        else:
+            inp_embedding_y, outp_embedding_y, outp_bias_y = self.get_vocab_token_emb('y')
+            inp_embedding_l, outp_embedding_l, outp_bias_l = self.get_vocab_token_emb('l')
+        inp_embedding_c, outp_embedding_c, outp_bias_c = self.get_vocab_token_emb('c')
+
+        logits_x = self.get_logits(encoded, tokens_x, inp_embedding_x, outp_embedding_x, outp_bias_x, training)
+        logits_y = self.get_logits(encoded, tokens_y, inp_embedding_y, outp_embedding_y, outp_bias_y, training)
+        logits_l = self.get_logits(encoded, tokens_l, inp_embedding_l, outp_embedding_l, outp_bias_l, training)
+        logits_c = self.get_logits(encoded, tokens_c, inp_embedding_c, outp_embedding_c, outp_bias_c, training)
+
+        return logits_x, logits_y, logits_l, logits_c
+
+    def get_logits_inference(self, encoded, inp_embedding, outp_embedding, outp_bias, prompt, max_seq_len,
+                             vocab_size, sampling_callback, temperature, top_k, top_p, training):
+        bsz, prompt_len = get_shape(prompt)
+        seq_len = self.max_seq_len if max_seq_len is None else max_seq_len
+
+        seq_pos_emb_ = self.get_seq_pos_emb()
+        seq_pos_emb = tf.expand_dims(seq_pos_emb_, 0)
+
+        # Each step reads caches[:step] and tokens[step:next_step] and updates
+        # tokens[next_step], logits[next_step] and caches[step:next_step].
+        # On the first step, step=0, next_step=prompt_len. On subsequent steps
+        # next_step = step + 1.
+        def loop_body(step, caches, tokens, logits, is_prompt=False):
+            if is_prompt:
+                """
+                since step tells us whether is_prompt is on, it is unclear why we even need 
+                this separate flag unless it was to be called with ste=0 without is_prompt 
+                which doesn't seem to be the case either
+                """
+                assert step == 0, "step must be 0 for is_prompt"
+                token_emb = tf.gather(inp_embedding, tf.transpose(tokens[:prompt_len]))
+                token_emb = token_emb + seq_pos_emb[:, :prompt_len]  # (bsz, prompt_len, d)
+                """
+                mask of valid tokens for autoregression
+                get_ar_mask returns 1 - valid_locs so 1 - get_ar_mask is double negative
+                """
+                mask_self = 1. - get_ar_mask(prompt_len, token_emb.dtype)
+                caches_in = None
+            else:
+                token_emb = tf.gather(inp_embedding, tf.transpose(tokens[step]))
+                token_emb = token_emb + seq_pos_emb[:, step]  # (bsz, d)
+                token_emb = tf.expand_dims(token_emb, 1)  # (bsz, 1, d)
+                mask_self = tf.ones([1, 1, 1, 1])
+                caches_in = tf.transpose(caches[:step], [1, 2, 0, 3])
+            outputs, caches_out = self.decoder(
+                token_emb, encoded, caches_in, mask_self, None, training=training)
+            outputs = self.output_ln(outputs)
+            next_logits = tf.matmul(  # only take the last for sampling next token.
+                outputs, outp_embedding, transpose_b=True)[:, -1]
+            if self.output_bias:
+                next_logits = tf.nn.bias_add(next_logits, outp_bias)
+
+            # Scale and truncate logits and sample next token.
+            if sampling_callback:
+                next_token = sampling_callback(
+                    next_logits, step, temperature, top_k, top_p)
+            else:
+                sampling_logits = next_logits / tf.cast(temperature, tf.float32)
+                sampling_logits = top_logits(sampling_logits, k=top_k, p=top_p)
+                next_token = tf.random.categorical(
+                    sampling_logits, num_samples=1, dtype=tf.int32)[:, 0]
+
+            # Update internal states.
+            next_step = step + (prompt_len if is_prompt else 1)
+            caches_out = tf.transpose(caches_out, [2, 0, 1, 3])
+            # TODO(srbs): We could merge these two branches by using
+            # tf.tensor_scatter_nd_update(caches, tf.range(start, next_ste), ...)
+            # but tf.range is not supported on TPU. If we could directly
+            # use XLA's DynamicUpdateSlice here this wouldn't be a problem but that
+            # is not exposed via TF's API.
+            if is_prompt:
+                """
+                tf.newaxis is another way to do expand_dims
+                caches[cache_indices] = caches_out
+                """
+                cache_indices = tf.constant(list(range(prompt_len)))[:, tf.newaxis]
+                caches = tf.tensor_scatter_nd_update(
+                    caches, cache_indices, caches_out)
+            else:
+                caches = tf.tensor_scatter_nd_update(caches, [[step]], caches_out)
+            """
+            tokens[next_step] = next_token
+            logits[next_step] = next_logits
+
+            accumulate tokens and logits one by one
+            tokens and logits are initialized with all zeros
+            """
+            tokens = tf.tensor_scatter_nd_update(tokens, [[next_step]], [next_token])
+            logits = tf.tensor_scatter_nd_update(logits, [[next_step]], [next_logits])
+            return (next_step, caches, tokens, logits)
+
+        def cond(step, caches, tokens, logits):
+            """unused input args here because loop body and cond must have the same signature"""
+            del caches
+            del tokens
+            del logits
+            return tf.less(step, seq_len - 1)
+
+        caches_var = tf.zeros([seq_len - 1, self.num_layers, bsz, self.dim])
+        tokens_var = tf.zeros([seq_len, bsz], dtype=tf.int64)
+        logits_var = tf.zeros([seq_len, bsz, vocab_size], dtype=tf.float32)
+        indices = tf.expand_dims(tf.range(prompt_len), -1)
+        """
+        equivalent to:
+        tokens_var[indices] = tf.transpose(prompt, [1, 0])
+        simply adds prompt tokens to the first few indices of each sample in tokens_var
+        """
+        tokens_var = tf.tensor_scatter_nd_update(
+            tokens_var, indices, tf.transpose(prompt, [1, 0]))
+
+        step = 0
+        """
+        called separately to handle the special case of prompt tokens since causal mask needs 
+        to be applied only to prompt tokens
+
+        all prompt tokens processed together as a group while non-prompt tokens are processed 
+        one at a time
+        prompt can be thought of as a multi-token generalization of SOS token        
+        """
+        step, caches_var, tokens_var, logits_var = loop_body(
+            step, caches_var, tokens_var, logits_var, is_prompt=True)
+
+        if seq_len > prompt_len:
+            step, caches_var, tokens_var, logits_var = tf.while_loop(
+                cond=cond, body=loop_body,
+                loop_vars=[step, caches_var, tokens_var, logits_var])
+
+        sampled_tokens = tf.transpose(tokens_var[prompt_len:], [1, 0])
+        sampled_logits = tf.transpose(logits_var[prompt_len:], [1, 0, 2])
+        return sampled_tokens, sampled_logits
+
+    def infer(self, prompt, encoded, max_seq_len=None,
+              temperature=1.0, top_k=1, top_p=1.0,
+              sampling_callback=None, training=False):
+
+        prompt_seq_x, prompt_seq_y, prompt_seq_l, prompt_seq_c = prompt
+        inp_embedding_x, outp_embedding_x, outp_bias_x = self.get_vocab_token_emb('x')
+        if self.shared_xyl:
+            inp_embedding_y, outp_embedding_y, outp_bias_y = inp_embedding_x, outp_embedding_x, outp_bias_x
+            inp_embedding_l, outp_embedding_l, outp_bias_l = inp_embedding_x, outp_embedding_x, outp_bias_x
+        else:
+            inp_embedding_y, outp_embedding_y, outp_bias_y = self.get_vocab_token_emb('y')
+            inp_embedding_l, outp_embedding_l, outp_bias_l = self.get_vocab_token_emb('l')
+        inp_embedding_c, outp_embedding_c, outp_bias_c = self.get_vocab_token_emb('c')
+
+        tokens_x, logits_x = self.get_logits_inference(
+            encoded, inp_embedding_x, outp_embedding_x, outp_bias_x, prompt_seq_x, max_seq_len, self.coord_vocab_size,
+            sampling_callback, temperature, top_k, top_p, training)
+
+        tokens_y, logits_y = self.get_logits_inference(
+            encoded, inp_embedding_y, outp_embedding_y, outp_bias_y, prompt_seq_y, max_seq_len, self.coord_vocab_size,
+            sampling_callback, temperature, top_k, top_p, training)
+
+        tokens_l, logits_l = self.get_logits_inference(
+            encoded, inp_embedding_l, outp_embedding_l, outp_bias_l, prompt_seq_l, max_seq_len, self.len_vocab_size,
+            sampling_callback, temperature, top_k, top_p, training)
+
+        tokens_c, logits_c = self.get_logits_inference(
+            encoded, inp_embedding_c, outp_embedding_c, outp_bias_c, prompt_seq_c, max_seq_len, self.class_vocab_size,
+            sampling_callback, temperature, top_k, top_p, training)
+
+        return [tokens_x, tokens_y, tokens_l, tokens_c], [logits_x, logits_y, logits_l, logits_c]
 
 
 def get_layer_config(layers_str):

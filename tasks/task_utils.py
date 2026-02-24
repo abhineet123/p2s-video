@@ -15,7 +15,10 @@
 # ==============================================================================
 """Common task utils."""
 
-import json
+import sys
+import math
+import os
+import random
 from typing import Optional, Any, Dict
 
 import cv2
@@ -26,6 +29,8 @@ import tensorflow as tf
 
 import numpy as np
 import scipy
+
+from datetime import datetime
 
 from PIL import Image
 
@@ -78,49 +83,35 @@ def split_runs(run_ids, starts, lengths, max_length):
     return starts, lengths
 
 
-def split_runs_tf(run_ids, starts, lengths, max_length):
-    """divide over-long runs into segments"""
+def split_runs_tf(starts, lengths, max_length):
+    """divide over-long runs into segments
+    Note: fixed missing append to new_starts_ and new_lengths_
+    Added handling for empty case"""
     new_starts_ = []
     new_lengths_ = []
-    # starts_, lengths_ = list(starts), list(lengths)
-    for _id in run_ids:
-        start, length = starts[_id], lengths[_id]
 
-        new_starts_.append(start)
-        new_lengths_.append(max_length)
+    n_runs = tf.size(starts)
 
-        residual_length = length - max_length
-        start_ = start
-        length_ = max_length
-        while True:
-            start_ += length_
-            new_starts_.append(start_)
+    for i in tf.range(n_runs):
+        start = tf.gather(starts, i)
+        length = tf.gather(lengths, i)
 
-            length_ = min(residual_length, max_length)
-            new_lengths_.append(length_)
+        end_ = start + length
 
-            residual_length -= length_
-            if residual_length <= 0:
-                break
+        starts_ = tf.experimental.numpy.arange(start, end_, max_length)
+        lengths_ = tf.math.minimum(start + length - starts_, max_length)
 
-        # if _id < len(lengths) - 1:
-        #     cmb = np.stack((starts, lengths), axis=1)
-        #     cmb_new = np.stack((new_starts_, new_lengths_), axis=1)
-        #     print()
+        new_starts_.append(starts_)
+        new_lengths_.append(lengths_)
 
-    valid_starts = [v for i, v in enumerate(starts) if i not in run_ids]
-    valid_lengths = [v for i, v in enumerate(lengths) if i not in run_ids]
+    # Handle empty case
+    if len(new_starts_) == 0:
+        return tf.constant([], dtype=tf.int32), tf.constant([], dtype=tf.int32)
 
-    valid_starts += new_starts_
-    valid_lengths += new_lengths_
+    new_starts = tf.concat(new_starts_, 0)
+    new_lengths = tf.concat(new_lengths_, 0)
 
-    starts, lengths = tf.experimental.numpy.asarray(valid_starts), tf.experimental.numpy.asarray(valid_lengths)
-
-    sort_idx = tf.experimental.numpy.argsort(starts)
-    starts = starts[sort_idx]
-    lengths = lengths[sort_idx]
-
-    return starts, lengths
+    return new_starts, new_lengths
 
 
 def read_frame(vid_reader, frame_id, vid_path=None):
@@ -137,8 +128,7 @@ def read_frame(vid_reader, frame_id, vid_path=None):
 
 def load_video(vid_path, seq=''):
     vid_reader = cv2.VideoCapture()
-    if not vid_reader.open(vid_path):
-        raise AssertionError(f'Video file could not be opened: {vid_path}')
+    if not vid_reader.open(vid_path):        raise AssertionError(f'Video file could not be opened: {vid_path}')
 
     num_frames = int(vid_reader.get(cv2.CAP_PROP_FRAME_COUNT))
     vid_height = int(vid_reader.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -216,6 +206,7 @@ def check_instance_wise_rle_tokens(
         starts_2d=starts_2d,
         flat_order=flat_order,
         ignore_invalid=False,
+        max_length=max_length,
 
     )
     starts, lengths, class_ids = rle_rec_cmp
@@ -245,7 +236,9 @@ def check_instance_wise_rle_tokens(
         mask_gt_vis_res = resize_mask(mask_gt_vis, image.shape)
         mask_rec_vis_res = resize_mask(mask_rec_vis, image.shape)
 
-        masks_all = np.concatenate([image, mask_gt_vis_res, mask_rec_vis_res], axis=1)
+        image_vis = (image * 255.).astype(np.uint8)
+
+        masks_all = np.concatenate([image_vis, mask_gt_vis_res, mask_rec_vis_res], axis=1)
         # vis_txt = ' '.join(vis_txt)
         # masks_all = eval_utils.annotate(masks_all, vis_txt)
         # cv2.imshow('mask_gt_vis', mask_gt_vis)
@@ -259,6 +252,7 @@ def check_instance_wise_rle_tokens(
         k = cv2.waitKey(0)
         if k == 27:
             exit()
+
 
 def check_class_wise_rle_tokens(
         image, mask, mask_sub, rle_tokens, n_classes,
@@ -295,6 +289,7 @@ def check_class_wise_rle_tokens(
         starts_2d=starts_2d,
         flat_order=flat_order,
         ignore_invalid=False,
+        max_length=max_length,
 
     )
     starts, lengths, class_ids = rle_rec_cmp
@@ -323,7 +318,8 @@ def check_class_wise_rle_tokens(
         mask_gt_vis_res = resize_mask(mask_gt_vis, image.shape)
         mask_rec_vis_res = resize_mask(mask_rec_vis, image.shape)
 
-        masks_all = np.concatenate([image, mask_gt_vis_res, mask_rec_vis_res], axis=1)
+        image_vis = (image * 255.).astype(np.uint8)
+        masks_all = np.concatenate([image_vis, mask_gt_vis_res, mask_rec_vis_res], axis=1)
         # vis_txt = ' '.join(vis_txt)
         # masks_all = eval_utils.annotate(masks_all, vis_txt)
         # cv2.imshow('mask_gt_vis', mask_gt_vis)
@@ -339,14 +335,72 @@ def check_class_wise_rle_tokens(
             exit()
 
 
-def check_rle(config, mask_vid_paths, images, img_ids, frame_ids, rles, training, class_id_to_col):
-    if isinstance(mask_vid_paths, str):
+def is_video(file_path):
+    vid_exts = ['.mp4', '.mkv', '.avi', '.webm']
+    file_ext = os.path.splitext(file_path)[1]
+    return file_ext.lower() in vid_exts
+
+
+def is_image(file_path):
+    img_exts = ['.jpg', '.png', '.jpeg', '.bmp', '.tif', '.tiff', '.webp']
+    file_ext = os.path.splitext(file_path)[1]
+    return file_ext.lower() in img_exts
+
+
+def get_rle_offsets(starts_offset, lengths_offset, class_offset, length_as_class,
+                    max_length, subsample, shared_coord, diff_mask, n_classes):
+    assert max_length > 0, "max_length must be > 0"
+
+    multi_class = n_classes > 2
+    if subsample > 1:
+        max_length /= subsample
+    if diff_mask:
+        min_starts_offset = n_classes * 2 + class_offset
+        if starts_offset < min_starts_offset:
+            print(f'diff_mask: setting starts_offset to {min_starts_offset}')
+            starts_offset = min_starts_offset
+    elif length_as_class:
+        assert multi_class, "length_as_class can be enabled only in multi_class mode"
+        assert not shared_coord, "shared coord tokens cannot be used with LAC"
+        assert not diff_mask, "diff mask cannot be used with LAC"
+
+        lengths_offset = class_offset
+        n_total_classes = max_length * (n_classes - 1)
+        min_starts_offset = n_total_classes + class_offset
+
+        if starts_offset < min_starts_offset:
+            min_starts_offset = int(math.ceil(min_starts_offset / 100) * 100)
+            print(f'LAC: setting starts_offset to {min_starts_offset}')
+            starts_offset = min_starts_offset
+    else:
+        n_total_classes = n_classes
+        min_lengths_offset = class_offset + n_total_classes
+        if lengths_offset < min_lengths_offset:
+            min_lengths_offset = int(math.ceil(min_lengths_offset / 100) * 100)
+            print(f'setting lengths_offset to {min_lengths_offset}')
+            lengths_offset = min_lengths_offset
+
+        if shared_coord:
+            print(f'setting starts_offset to {lengths_offset} for shared coord tokens')
+            starts_offset = lengths_offset
+        else:
+            min_starts_offset = lengths_offset + max_length
+            if starts_offset < min_starts_offset:
+                min_starts_offset = int(math.ceil(min_starts_offset / 100) * 100)
+                print(f'setting starts_offset to {min_starts_offset}')
+                starts_offset = min_starts_offset
+
+    return starts_offset, lengths_offset, class_offset
+
+
+def check_rle(config, mask_paths, images, masks, img_ids, frame_ids, rles, training,
+              class_id_to_col):
+    if isinstance(mask_paths, str):
         images = np.expand_dims(images, axis=0)
         img_ids = np.expand_dims(img_ids, axis=0)
         frame_ids = np.expand_dims(frame_ids, axis=0)
         rles = np.expand_dims(rles, axis=0)
-
-        mask_vid_paths = [mask_vid_paths, ]
+        mask_paths = [mask_paths, ]
 
     batch_size = frame_ids.shape[0]
     if training:
@@ -361,6 +415,7 @@ def check_rle(config, mask_vid_paths, images, img_ids, frame_ids, rles, training
     # assert subsample >= 1, "subsample must be >= 1"
 
     rle_from_mask = config.dataset.rle_from_mask
+    target_size = config.dataset.target_size
     instance_wise = config.dataset.instance_wise
     class_wise = config.dataset.class_wise
     multi_class = config.dataset.multi_class
@@ -385,27 +440,47 @@ def check_rle(config, mask_vid_paths, images, img_ids, frame_ids, rles, training
         if starts_offset < n_lac_classes:
             print(f'setting starts_offset to {n_lac_classes}')
             starts_offset = n_lac_classes
-    masks = []
+    masks_orig = []
     masks_sub = []
     for batch_id in range(batch_size):
-        mask_vid_path = mask_vid_paths[batch_id]
-        if isinstance(mask_vid_path, bytes):
-            mask_vid_path = mask_vid_path.decode('utf-8')
 
         rle = rles[batch_id]
         img_id = img_ids[batch_id]
         image = images[batch_id]
         frame_id = frame_ids[batch_id]
-        vid_reader, vid_width, vid_height, num_frames = load_video(mask_vid_path)
 
-        n_rows, n_cols = vid_height, vid_width
-        n_rows_sub, n_cols_sub = int(n_rows / subsample), int(n_cols / subsample)
-
-        mask = read_frame(vid_reader, frame_id - 1, mask_vid_path)
+        if masks is not None:
+            mask = masks[batch_id]
+            is_vis = False
+        else:
+            mask_path = mask_paths[batch_id]
+            if isinstance(mask_path, bytes):
+                mask_path = mask_path.decode('utf-8')
+            if is_video(mask_path):
+                vid_reader, vid_width, vid_height, num_frames = load_video(mask_path)
+                mask = read_frame(vid_reader, frame_id - 1, mask_path)
+                is_vis = True
+            elif is_image(mask_path):
+                mask_pil = Image.open(mask_path)
+                mask = np.array(mask_pil)
+                is_vis = False
+            else:
+                raise AssertionError(f'invalid mask_path: {mask_path}')
 
         if not multi_class:
             mask = mask_to_binary(mask)
         mask = mask_to_gs(mask)
+
+        if masks is None and rle_from_mask and target_size is not None:
+            mask_tf = tf.expand_dims(tf.convert_to_tensor(mask), axis=2)
+            mask_tf = tf.image.resize(
+                mask_tf, target_size, method='nearest',
+                antialias=False, preserve_aspect_ratio=False)
+            mask = mask_tf.numpy().squeeze()
+
+        n_rows, n_cols = mask.shape[:2]
+
+        n_rows_sub, n_cols_sub = int(n_rows / subsample), int(n_cols / subsample)
 
         if subsample > 1:
             if rle_from_mask:
@@ -427,7 +502,7 @@ def check_rle(config, mask_vid_paths, images, img_ids, frame_ids, rles, training
         else:
             mask_sub = np.copy(mask)
 
-        masks.append(mask)
+        masks_orig.append(mask)
         masks_sub.append(mask_sub)
 
         rle_stripped = rle[rle != vocab.PADDING_TOKEN]
@@ -446,7 +521,7 @@ def check_rle(config, mask_vid_paths, images, img_ids, frame_ids, rles, training
                 subsample=subsample,
                 flat_order=flat_order,
                 class_to_col=class_id_to_col,
-                is_vis=True)
+                is_vis=is_vis)
         else:
             check_rle_tokens(
                 image, mask, mask_sub,
@@ -462,7 +537,7 @@ def check_rle(config, mask_vid_paths, images, img_ids, frame_ids, rles, training
                 class_to_col=class_id_to_col,
                 multi_class=multi_class,
                 flat_order=flat_order,
-                is_vis=True,
+                is_vis=is_vis,
             )
     return masks, masks_sub
 
@@ -474,8 +549,21 @@ def check_rle_tokens(
         starts_offset, lengths_offset, class_offset,
         max_length, subsample, multi_class,
         flat_order,
-        class_to_col, is_vis):
+        class_to_col,
+        is_vis,
+        no_starts=False,
+        diff_mask=False,
+):
     mask_gt = mask_to_gs(mask, copy=True)
+    if diff_mask:
+        mask_sub = mask_from_diff(
+            mask_sub,
+            rle_cmp=None,
+            n_frg_classes=n_classes - 1,
+            flatten=diff_mask == 2,
+            flat_order=flat_order,
+            ignore_invalid=False
+        )
     mask_gt_sub = mask_to_gs(mask_sub, copy=True)
 
     if len(rle_tokens) == 0:
@@ -483,6 +571,7 @@ def check_rle_tokens(
         return
 
     if is_vis:
+        assert not diff_mask, "mask_vis_to_id not yet implemented for diff_mask"
         mask_vis_to_id(mask_gt, n_classes)
         mask_vis_to_id(mask_gt_sub, n_classes)
 
@@ -492,53 +581,76 @@ def check_rle_tokens(
         max_length = int(max_length / subsample)
         n_rows, n_cols = int(n_rows / subsample), int(n_cols / subsample)
 
-    mask_rec, rle_rec_cmp = mask_from_tokens(
-        rle_tokens,
-        (n_rows, n_cols),
-        allow_extra=False,
-        length_as_class=length_as_class,
-        max_length=max_length,
-        starts_offset=starts_offset,
-        lengths_offset=lengths_offset,
-        class_offset=class_offset,
-        starts_2d=starts_2d,
-        multi_class=multi_class,
-        flat_order=flat_order,
-    )
+    if no_starts:
+        mask_rec = mask_from_tokens_no_starts(
+            rle_tokens,
+            (n_rows, n_cols),
+            length_as_class,
+            max_length,
+            lengths_offset,
+            class_offset,
+            flat_order,
+        )
+    else:
+        mask_rec, rle_rec_cmp = mask_from_tokens(
+            rle_tokens,
+            (n_rows, n_cols),
+            allow_extra=False,
+            length_as_class=length_as_class,
+            max_length=max_length,
+            starts_offset=starts_offset,
+            lengths_offset=lengths_offset,
+            class_offset=class_offset,
+            starts_2d=starts_2d,
+            multi_class=multi_class,
+            flat_order=flat_order,
+            diff_mask=diff_mask,
+            ignore_invalid=False,
+            max_seq_len=None,
+            n_classes=n_classes,
+        )
+        class_ids = None
+        if diff_mask:
+            mask_rec, rle_rec_cmp = mask_from_diff(
+                mask_rec,
+                rle_cmp=rle_rec_cmp,
+                n_frg_classes=n_classes - 1,
+                flatten=diff_mask == 2,
+                flat_order=flat_order,
+                ignore_invalid=False,
+            )
+            starts, class_ids = rle_rec_cmp
+        else:
+            starts, lengths = rle_rec_cmp[:2]
+            assert np.all(lengths <= max_length), f"run length cannot be > {max_length}"
+            assert np.all(lengths > 0), "run length cannot be 0"
 
-    starts, lengths = rle_rec_cmp[:2]
-    assert np.all(lengths <= max_length), f"run length cannot be > {max_length}"
-    assert np.all(lengths > 0), "run length cannot be 0"
+            if len(rle_rec_cmp) == 3:
+                class_ids = rle_rec_cmp[2]
+                assert np.all(np.asarray(class_ids) <= n_classes), "class_ids must be <= n_classes"
 
-    n_rows, n_cols = mask_gt_sub.shape
-    n_pix = n_rows * n_cols
-    assert np.all(starts <= n_pix - 1), f"starts cannot be > {n_pix - 1}"
+        n_rows, n_cols = mask_gt_sub.shape[:2]
+        n_pix = n_rows * n_cols
+        assert np.all(starts <= n_pix - 1), f"starts cannot be > {n_pix - 1}"
 
-    if len(rle_rec_cmp) == 3:
-        class_ids = rle_rec_cmp[2]
-        assert 0 not in class_ids, "class_ids must be non-zero"
-        assert np.all(np.asarray(class_ids) <= n_classes), "class_ids must be <= n_classes"
+        if class_ids is not None:
+            assert 0 not in class_ids, "class_ids must be non-zero"
 
     if not np.array_equal(mask_gt_sub, mask_rec):
-        print("mask_rec mismatch")
+        print("\n\nmask_rec mismatch\n\n")
 
-        # if subsample > 1:
-        #     mask_rec = resize_mask(mask_rec, mask.shape, n_classes, is_vis=1)
-
-        # import eval_utils
         mask_gt_vis = mask_id_to_vis_bgr(mask_gt_sub, class_to_col)
         mask_rec_vis = mask_id_to_vis_bgr(mask_rec, class_to_col)
 
         mask_gt_vis = resize_mask(mask_gt_vis, image.shape)
         mask_rec_vis = resize_mask(mask_rec_vis, image.shape)
 
-        masks_all = np.concatenate([image, mask_gt_vis, mask_rec_vis], axis=1)
-        # vis_txt = ' '.join(vis_txt)
-        # masks_all = eval_utils.annotate(masks_all, vis_txt)
-        # cv2.imshow('mask_gt_vis', mask_gt_vis)
-        # cv2.imshow('mask_rec_vis', mask_rec_vis)
+        image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        image_vis = (image_bgr * 255.).astype(np.uint8)
 
-        masks_all = resize_ar(masks_all, 640, 480)
+        masks_all = np.concatenate([image_vis, mask_gt_vis, mask_rec_vis], axis=1)
+
+        masks_all = resize_ar(masks_all, 960, 540)
 
         cv2.imshow('masks_all', masks_all)
         cv2.imshow('mask_gt_vis', mask_gt_vis)
@@ -546,8 +658,20 @@ def check_rle_tokens(
         k = cv2.waitKey(0)
         if k == 27:
             exit()
-
-        # print('masks match !')
+    # else:
+    #     print("\n\nmask_rec matches\n\n")
+    #
+    #     mask_gt_vis = mask_id_to_vis_bgr(mask_gt_sub, class_to_col)
+    #     mask_rec_vis = mask_id_to_vis_bgr(mask_rec, class_to_col)
+    #
+    #     mask_gt_vis = resize_mask(mask_gt_vis, image.shape)
+    #     mask_rec_vis = resize_mask(mask_rec_vis, image.shape)
+    #
+    #     cv2.imshow('mask_gt_vis', mask_gt_vis)
+    #     cv2.imshow('mask_rec_vis', mask_rec_vis)
+    #     k = cv2.waitKey(0)
+    #     if k == 27:
+    #         exit()
 
 
 def check_individual_vid_masks(video, vid_mask_gt_sub, vid_mask_rec, class_id_to_col, n_classes):
@@ -570,6 +694,78 @@ def check_individual_vid_masks(video, vid_mask_gt_sub, vid_mask_rec, class_id_to
                 exit()
         else:
             print(f"mask {vid_id} matches")
+
+
+def contract_to_min(rle_x_, rle_y_, rle_l_, rle_c_):
+    min_rle_seq_len = min(rle_x_.size, rle_y_.size, rle_l_.size, rle_c_.size)
+
+    rle_x_ = rle_x_[:min_rle_seq_len]
+    rle_y_ = rle_y_[:min_rle_seq_len]
+    rle_l_ = rle_l_[:min_rle_seq_len]
+    rle_c_ = rle_c_[:min_rle_seq_len]
+
+    return rle_x_, rle_y_, rle_l_, rle_c_
+
+
+def naive_denoise(rle_x_, rle_y_, rle_l_, rle_c_):
+    rle_x_ = rle_x_[rle_x_ != vocab.PADDING_TOKEN]
+    rle_y_ = rle_y_[rle_y_ != vocab.PADDING_TOKEN]
+    rle_l_ = rle_l_[rle_l_ != vocab.PADDING_TOKEN]
+    rle_c_ = rle_c_[rle_c_ != vocab.PADDING_TOKEN]
+
+    rle_x_, rle_y_, rle_l_, rle_c_ = self.contract_to_min(rle_x_, rle_y_, rle_l_, rle_c_)
+
+    return rle_x_, rle_y_, rle_l_, rle_c_
+
+
+def expand_to_max(seqs_all, logits_all, vacab_ids_all):
+    max_seq_len = max(k.size for k in seqs_all)
+
+    out_seqs = []
+
+    for seq, logits, vacab_ids in zip(seqs_all, logits_all, vacab_ids_all, strict=True):
+        assert seq.size <= max_seq_len, "max_seq_len must be >= seq.size"
+        assert logits.shape[1] > max_seq_len, "max_seq_len must be <= logits.shape[1]"
+
+        if seq.size == max_seq_len:
+            out_seqs.append(seq)
+            continue
+
+        ext_start, ext_end = seq.size, max_seq_len - 1
+        vocab_start, vocab_end = vacab_ids
+        seq_ext = np.argmax(logits[vocab_start:vocab_end + 1, ext_start:ext_end + 1])
+        seq = np.concatenate((seq, seq_ext), axis=0)
+        out_seqs.append(seq)
+
+    return out_seqs
+
+
+def denoise_with_selective_argmax(seqs_all, logits_all, vacab_ids_all, exclude_eos_padding):
+    """
+    remove noisy intermittent padding tokens by selective argmax over logits
+    """
+    out_seqs = []
+    for seq, logits, vacab_ids in zip(seqs_all, logits_all, vacab_ids_all, strict=True):
+        if exclude_eos_padding:
+            """Exclude continuous subsequence of padding tokens at the end of the sequence"""
+            non_padding_ids = np.asarray(seq != vocab.PADDING_TOKEN).flatten().nonzero()[0]
+            seq_end = np.amax(non_padding_ids)
+
+            assert logits.shape[0] > seq_end, "logits.shape[1] must be > seq_end"
+
+            seq = seq[:seq_end]
+            logits = logits[:seq_end, :]
+
+        vocab_start, vocab_end = vacab_ids
+
+        assert logits.shape[1] > vocab_end, "logits.shape[0] must be > vocab_end"
+
+        noise_ids = np.asarray(np.logical_or(seq < vocab_start, seq > vocab_end)).flatten().nonzero()
+        if noise_ids.size > 0:
+            seq[noise_ids] = np.argmax(logits[noise_ids, vocab_start:vocab_end + 1], axis=1) + vocab_start
+        out_seqs.append(seq)
+
+    return out_seqs
 
 
 def check_video_rle_ranges(rle_tokens, n_runs, multi_class, time_as_class, length_as_class,
@@ -963,11 +1159,13 @@ def mask_id_to_vis(mask_id, n_classes, to_rgb=0, copy=False,
                 class_id: cols[class_id] for class_id in range(n_classes)
             }
 
-    for class_id, class_col in class_id_to_col.items():
-        mask_vis[mask_id == class_id] = class_col
-
     if to_rgb and len(mask_vis.shape) == 2:
         mask_vis = np.stack((mask_vis,) * 3, axis=2)
+
+    for class_id, class_col in class_id_to_col.items():
+        if len(mask_vis.shape) == 3 and isinstance(class_col, int):
+            class_col = (class_col, class_col, class_col)
+        mask_vis[mask_id == class_id] = class_col
 
     if return_class_id_to_col:
         return mask_vis, class_id_to_col
@@ -1016,7 +1214,7 @@ def mask_vis_to_id(mask_vis, n_classes=None, copy=False, check=False,
         else:
             cols = get_class_cols_gs(n_classes)
             for class_id in range(1, n_classes):
-                mask_vis[mask_id == cols[class_id]] = class_id
+                mask_id[mask_vis == cols[class_id]] = class_id
 
     if check:
         mask_vis_rec = mask_id_to_vis(mask_id, n_classes, copy=True)
@@ -1122,12 +1320,17 @@ def remove_spurious_mids_with_edges(mask_id, max_iters=0):
         # cv2.waitKey(0)
 
 
-def blend_mask(mask, image, class_id_to_col, alpha=0.5):
-    n_classes = len(class_id_to_col)
+def blend_mask(mask, image, class_id_to_col, alpha=0.5, class_ids=None):
+    if class_ids is None:
+        # n_classes = len(class_id_to_col)
+        class_ids = list(class_id_to_col.keys())
+
+        print()
+
     """ignore class id 0 for background"""
     vis_image = np.copy(image)
 
-    for class_id in range(1, n_classes):
+    for class_id in class_ids:
         class_col = class_id_to_col[class_id]
         if isinstance(class_col, str):
             class_col = col_bgr[class_col]
@@ -1142,14 +1345,18 @@ def vid_mask_id_to_vis_rgb(vid_mask, class_id_to_col):
     return vid_mask_rgb
 
 
-def mask_id_to_vis_bgr(mask, class_id_to_col):
-    mask_bgr = np.stack((mask,) * 3, axis=2).astype(np.uint8)
+def mask_id_to_vis_bgr(mask: np.ndarray, class_id_to_col: dict):
+    mask_bgr = np.stack((np.zeros_like(mask),) * 3, axis=2).astype(np.uint8)
 
-    n_classes = len(class_id_to_col)
-    for class_id in range(n_classes):
+    for class_id, class_col in class_id_to_col.items():
         class_col = class_id_to_col[class_id]
         if isinstance(class_col, str):
-            class_col = col_bgr[class_col]
+            try:
+                class_col = col_bgr[class_col]
+            except KeyError:
+                b, g, r = map(int, class_col.split('_'))
+                class_col = [b, g, r]
+
         mask_bgr[mask == class_id] = class_col
     return mask_bgr
 
@@ -1204,6 +1411,19 @@ def get_class_cols_gs(n_classes):
 
 
 def get_cols_rgb(n_cols, min_col=100, max_col=200):
+    predef_cols = (
+        'deep_sky_blue', 'magenta', 'yellow', 'orange', 'forest_green', 'cyan',
+        'maroon', 'peach_puff', 'dark_orange', 'slate_gray',
+        'pale_turquoise', 'green_yellow', 'indian_red', 'sienna', 'dark_orange',
+        'hot_pink', 'deep_pink', 'orchid', 'blue_violet', 'tomato',
+        'orange_red', 'brown', 'peru', 'gold', 'chartreuse',
+        'steel_blue', 'gray',
+    )
+
+    if n_cols <= len(predef_cols):
+        cols = [col_bgr[predef_cols[i]] for i in range(n_cols)]
+        return cols
+
     n_col_levels = int(n_cols ** (1. / 3) + 1)
     col_range = max_col - min_col
     assert n_col_levels <= col_range, "n_col_levels exceeds col_range"
@@ -1212,7 +1432,8 @@ def get_cols_rgb(n_cols, min_col=100, max_col=200):
         n_col_levels, dtype=int)]
     import itertools
     cols = list(itertools.product(col_levels, repeat=3))
-
+    random.shuffle(cols)
+    cols = cols[:n_cols]
     return cols
 
 
@@ -1442,7 +1663,7 @@ def vis_run(start, length, class_id, run_txt,
             mask_sub_vis, mask_bool,
             class_id_to_col,
             text_img, text_x, text_y, font_size,
-            vis_size, vis_image,
+            vis_size_y, vis_size_x,
             n_rows, n_cols,
             resize_x, resize_y,
             flat_order, eos, arrow,
@@ -1459,15 +1680,14 @@ def vis_run(start, length, class_id, run_txt,
     mask_sub_vis = np.copy(mask_sub_vis)
     mask_sub_vis[mask_bool] = col
 
+    vis_mask_ = cv2.resize(mask_sub_vis, (vis_size_y, vis_size_x))
+
     text_img, text_x, text_y, text_bb = vis_utils.write_text(text_img, run_txt, text_x, text_y, col,
                                                              wait=100, bb=1, show=0, font_size=font_size)
 
     if eos:
         text_img, _, _ = vis_utils.write_text(text_img, 'EOS', text_x, text_y, frg_col,
                                               show=0, font_size=font_size)
-
-    vis_mask_ = cv2.resize(mask_sub_vis, (vis_size, vis_size))
-    vis_image_ = cv2.resize(vis_image, (vis_size, vis_size))
 
     # vis_mask_, text_bb = vis_utils.write_text(vis_mask_, run_txt, 5, 5, col, font_size=24, show=0, bb=1)
 
@@ -1477,20 +1697,20 @@ def vis_run(start, length, class_id, run_txt,
 
     run_x, run_y = int(run_x * resize_x), int(run_y * resize_y)
     """vis_mask_ to the right of vis_image_"""
-    run_x += vis_size
-    seg_rle_vis = np.concatenate((vis_image_, vis_mask_), axis=1)
+    # run_x += vis_size_x
 
     left, top, right, bottom, multiline = text_bb
     text_bb_x, text_bb_y = int((left + right) / 2), int(bottom)
     """text_img is to the right of vis_mask_"""
-    text_bb_x += int(vis_size * 2)
+    # text_bb_x += int(vis_size_x * 2)
+    text_bb_x += int(vis_size_x)
     text_bb_y += 10
-    seg_rle_vis = np.concatenate((seg_rle_vis, text_img), axis=1)
+    mask_txt_vis = np.concatenate((vis_mask_, text_img), axis=1)
 
     if arrow:
-        seg_rle_vis = cv2.arrowedLine(seg_rle_vis, (run_x, run_y), (text_bb_x, text_bb_y), col,
-                                      2, tipLength=0.01)
-    return seg_rle_vis, mask_sub_vis, (text_img, text_x, text_y)
+        mask_txt_vis = cv2.arrowedLine(mask_txt_vis, (run_x, run_y), (text_bb_x, text_bb_y), col,
+                                       2, tipLength=0.01)
+    return mask_txt_vis, mask_sub_vis, (text_img, text_x, text_y)
 
 
 def vis_video_run_txt(img_to_run_pixs, run_txt, vid_mask_vis, vid_vis,
@@ -1848,19 +2068,28 @@ def vis_video_rle(rle_cmp, class_id_to_col, class_id_to_name, image_ids,
             exit()
 
 
-def rle_to_lac(rle_cmp, max_length):
-    starts, lengths, class_ids = rle_cmp
+def rle_to_lac(rle_cmp, max_length, check=True):
+    if len(rle_cmp) == 3:
+        starts, lengths, class_ids = rle_cmp
+    else:
+        # no_starts mode
+        lengths, class_ids = rle_cmp
 
     lac = np.asarray([max_length * (class_id - 1) + length
                       for class_id, length in zip(class_ids, lengths)], dtype=np.int64)
 
-    lengths_rec = lengths_from_lac(lac, max_length)
-    class_ids_rec = class_ids_from_lac(lac, max_length)
+    if check:
+        lengths_rec = lengths_from_lac(lac, max_length)
+        class_ids_rec = class_ids_from_lac(lac, max_length)
 
-    assert np.array_equal(lengths_rec, lengths), "lengths_rec mismatch"
-    assert np.array_equal(class_ids_rec, class_ids), "class_ids_rec mismatch"
+        assert np.array_equal(lengths_rec, lengths), "lengths_rec mismatch"
+        assert np.array_equal(class_ids_rec, class_ids), "class_ids_rec mismatch"
 
-    rle_cmp = [starts, lac]
+    if len(rle_cmp) == 3:
+        rle_cmp = [rle_cmp[0], lac]
+    else:
+        rle_cmp = [lac, ]
+
     return rle_cmp
 
 
@@ -1892,7 +2121,12 @@ def rle_from_lac(lac, max_length):
 
 def vis_rle(rle_cmp, length_as_class, max_length,
             class_id_to_col, class_id_to_name,
-            image, mask, mask_sub, flat_order):
+            image, mask, mask_sub, flat_order,
+            show_eos,
+            prev_run_info=None,
+            vis_images=None,
+            txt_col=None,
+            ):
     starts, lengths = rle_cmp[:2]
     class_ids = None
 
@@ -1903,13 +2137,33 @@ def vis_rle(rle_cmp, length_as_class, max_length,
     n_classes = len(class_id_to_col)
     # cols = get_cols(n_runs)
 
-    mask_rgb = mask_id_to_vis_bgr(mask, class_id_to_col)
-    mask_sub_rgb = mask_id_to_vis_bgr(mask_sub, class_id_to_col)
+    # mask_rgb = mask_id_to_vis_bgr(mask, class_id_to_col)
+    # mask_sub_rgb = mask_id_to_vis_bgr(mask_sub, class_id_to_col)
 
-    mask_sub_vis = mask_id_to_vis(mask_sub, n_classes=n_classes, to_rgb=1, copy=True)
+    mask_sub_vis = mask_id_to_vis(
+        mask_sub, n_classes=None, class_id_to_col=class_id_to_col,
+        to_rgb=1, copy=True)
     mask_sub_vis[mask_sub_vis > 0] = 255
 
-    vis_image = blend_mask(mask, image, class_id_to_col, alpha=0.25)
+    vis_size_default = 640
+    font_size = 48
+
+    if vis_images is None:
+        vis_image = blend_mask(mask, image, class_id_to_col, alpha=0.25)
+        vis_size_x = vis_size_y = vis_size_default
+        txt_size_x = txt_size_y = vis_size_default
+        vis_image = cv2.resize(vis_image, (vis_size_y, vis_size_x))
+    else:
+        vis_size_y, vis_size_x = vis_images[0].shape[:2]
+        vis_image = np.concatenate(vis_images, axis=1)
+        total_size_y, total_size_x = vis_image.shape[:2]
+
+        assert total_size_y == vis_size_y, "size_y and total_size_y mismatch"
+        assert total_size_x > vis_size_x, "total_size_x must be >  size_x"
+
+        txt_size_y = vis_size_y
+        txt_size_x = total_size_x - vis_size_x
+        # font_size = int(font_size_default * txt_size_x / vis_size_default)
 
     text_x = text_y = 5
     # col = (0, 255, 0)
@@ -1917,10 +2171,8 @@ def vis_rle(rle_cmp, length_as_class, max_length,
     frg_col = (255, 255, 255)
     temp_col = col_bgr['medium_purple']
     # mask_col = (0, 255, 0)
-    vis_size = 640
-    font_size = 24
     n_rows, n_cols = mask_sub.shape
-    resize_y, resize_x = float(vis_size) / n_rows, float(vis_size) / n_cols
+    resize_y, resize_x = float(vis_size_y) / n_rows, float(vis_size_x) / n_cols
 
     # mask_sub_vis_ = cv2.resize(mask_sub_vis, (vis_size, vis_size))
     # mask_sub_rgb_ = cv2.resize(mask_sub_rgb, (vis_size, vis_size))
@@ -1931,7 +2183,7 @@ def vis_rle(rle_cmp, length_as_class, max_length,
     # cv2.waitKey(0)
     # return
 
-    text_img = np.full((vis_size, vis_size, 3), bkg_col, dtype=np.uint8)
+    text_img = np.full((txt_size_y, txt_size_x, 3), bkg_col, dtype=np.uint8)
     mask_flat = mask_sub.flatten(order=flat_order)
     _pause = 1
 
@@ -1939,6 +2191,35 @@ def vis_rle(rle_cmp, length_as_class, max_length,
     # time_stamp = datetime.now().strftime("%y%m%d_%H%M%S")
     # out_vis_path = f'vis_rle_{time_stamp}.mp4'
     # vid_writer = vis_utils.get_video_writer(out_vis_path)
+
+    # time_stamp = datetime.now().strftime("%y%m%d_%H%M%S")
+    out_dir = utils.linux_path('log', f'rle_vis')
+    os.makedirs(out_dir, exist_ok=True)
+
+    if prev_run_info is not None:
+        _pause = 0
+        for prev_run_txt, prev_col in prev_run_info:
+            text_img, text_x, text_y, text_bb = vis_utils.write_text(
+                text_img, prev_run_txt, text_x, text_y, prev_col,
+                wait=100, bb=1, show=0, font_size=font_size)
+
+    if n_runs == 0 and show_eos:
+        text_img, _, _ = vis_utils.write_text(text_img, 'EOS', text_x, text_y, frg_col,
+                                              show=0, font_size=font_size)
+        vis_mask_ = cv2.resize(mask_sub_vis, (vis_size_y, vis_size_x))
+        mask_txt_vis = np.concatenate((vis_mask_, text_img), axis=1)
+        if vis_images is None:
+            seg_rle_vis = np.concatenate((vis_image, mask_txt_vis), axis=1)
+        else:
+            seg_rle_vis = np.concatenate((vis_image, mask_txt_vis), axis=0)
+        time_stamp = datetime.now().strftime("%y%m%d_%H%M%S_%f")
+        out_path = utils.linux_path(out_dir, f'{time_stamp}.jpg')
+        cv2.imwrite(out_path, seg_rle_vis)
+
+        seg_rle_vis = resize_ar(seg_rle_vis, 1920, 1080)
+        cv2.imshow('seg_rle_vis', seg_rle_vis)
+
+    run_txts = []
 
     for run_id, (start, length) in enumerate(zip(starts, lengths)):
         # run_y, run_x = np.unravel_index([start, start + length], (n_rows, n_cols), order=flat_order)
@@ -1965,14 +2246,14 @@ def vis_rle(rle_cmp, length_as_class, max_length,
         mask_bool_flat[start:start + length] = True
         mask_bool = np.reshape(mask_bool_flat, (n_rows, n_cols), order=flat_order)
 
-        eos = run_id == n_runs - 1
+        eos = show_eos and run_id == n_runs - 1
 
-        seg_rle_vis, _, _ = vis_run(
+        mask_txt_vis, _, _ = vis_run(
             start, length, class_id, run_txt,
             mask_sub_vis, mask_bool,
             class_id_to_col,
             text_img, text_x, text_y, font_size,
-            vis_size, vis_image,
+            vis_size_y, vis_size_x,
             n_rows, n_cols,
             resize_x, resize_y,
             flat_order,
@@ -1981,6 +2262,16 @@ def vis_rle(rle_cmp, length_as_class, max_length,
             frg_col=frg_col,
             col=temp_col)
 
+        if vis_images is None:
+            seg_rle_vis = np.concatenate((vis_image, mask_txt_vis), axis=1)
+        else:
+            seg_rle_vis = np.concatenate((vis_image, mask_txt_vis), axis=0)
+
+        time_stamp = datetime.now().strftime("%y%m%d_%H%M%S_%f")
+        out_path = utils.linux_path(out_dir, f'{time_stamp}.jpg')
+        cv2.imwrite(out_path, seg_rle_vis)
+
+        seg_rle_vis = resize_ar(seg_rle_vis, 1920, 1080)
         cv2.imshow('seg_rle_vis', seg_rle_vis)
         k = cv2.waitKey(0 if _pause else 100)
         if k == 27:
@@ -1988,23 +2279,27 @@ def vis_rle(rle_cmp, length_as_class, max_length,
         elif k == 32:
             _pause = 1 - _pause
 
-        seg_rle_vis, mask_sub_vis, text_info = vis_run(
+        mask_txt_vis, mask_sub_vis, text_info = vis_run(
             start, length, class_id, run_txt,
             mask_sub_vis, mask_bool,
             class_id_to_col,
             text_img, text_x, text_y, font_size,
-            vis_size, vis_image,
+            vis_size_y, vis_size_x,
             n_rows, n_cols,
             resize_x, resize_y,
             flat_order,
             arrow=False,
             eos=eos,
             frg_col=frg_col,
-            col=None)
+            col=txt_col)
+
         text_img, text_x, text_y = text_info
+
+        run_txts.append(run_txt)
 
     cv2.waitKey(0)
     # vis_utils.close_video_writers(vid_writer)
+    return run_txts
 
 
 def construct_rle(starts_rows, starts_cols, lengths, shape, starts_2d,
@@ -2103,33 +2398,62 @@ def subsample_rle(starts, lengths, subsample, shape, max_length, flat_order):
 
 def rle_to_tokens(rle_cmp, shape, length_as_class,
                   starts_offset, lengths_offset, class_offset,
-                  starts_2d, flat_order):
-    starts, lengths = rle_cmp[:2]
+                  starts_2d, flat_order, no_starts=False, diff_mask=False):
+    class_ids = None
+    if diff_mask:
+        starts, class_ids = rle_cmp
+        if len(starts) == 0:
+            return []
 
-    if len(starts) == 0:
-        return []
-
-    if length_as_class:
-        assert len(rle_cmp) == 2, "rle must have 2 components with length_as_class enabled"
-        lengths += class_offset
+        starts = np.copy(starts)
+        class_ids = np.copy(class_ids)
     else:
-        lengths += lengths_offset
+        if no_starts:
+            lengths = rle_cmp[0]
+        else:
+            starts, lengths = rle_cmp[:2]
+            starts = np.copy(starts)
 
-    if starts_2d:
-        starts_rows, starts_cols = np.unravel_index(starts, shape, order=flat_order)
-        starts_rows += (starts_offset + 1)
-        starts_cols += (starts_offset + 1)
-        rle_tokens_cmp = [starts_rows, starts_cols, lengths]
-    else:
-        starts += (starts_offset + 1)
-        rle_tokens_cmp = [starts, lengths]
+        lengths = np.copy(lengths)
 
-    if len(rle_cmp) == 3:
-        class_ids = np.asarray(rle_cmp[2])
-        class_ids += class_offset
-        rle_tokens_cmp.append(class_ids)
+        if len(lengths) == 0:
+            return []
+
+        if length_as_class:
+            assert len(rle_cmp) == 1 if no_starts else 2, "rle must have 2 components with length_as_class enabled"
+            lengths += class_offset
+        else:
+            lengths += lengths_offset
+
+        if len(rle_cmp) == 3:
+            class_ids = np.copy(np.asarray(rle_cmp[-1]))
+        else:
+            assert len(rle_cmp) == 2, "rle_cmp length must be 2 or 3"
+
+    if no_starts:
+        rle_tokens_cmp = [lengths, ]
+        if len(rle_cmp) == 2:
+            class_ids = np.copy(np.asarray(rle_cmp[-1]))
+            class_ids += class_offset
+            rle_tokens_cmp.append(class_ids)
+        else:
+            assert len(rle_cmp) == 2, "rle_cmp length must be 2 or 3"
     else:
-        assert len(rle_cmp) == 2, "rle_cmp length must be 2 or 3"
+        if starts_2d:
+            starts_rows, starts_cols = np.unravel_index(starts, shape, order=flat_order)
+            starts_rows += (starts_offset + 1)
+            starts_cols += (starts_offset + 1)
+            rle_tokens_cmp = [starts_rows, starts_cols, ]
+        else:
+            starts += (starts_offset + 1)
+            rle_tokens_cmp = [starts, ]
+
+        if not diff_mask:
+            rle_tokens_cmp.append(lengths)
+
+        if class_ids is not None:
+            class_ids += class_offset
+            rle_tokens_cmp.append(class_ids)
 
     rle_tokens = [int(item) for sublist in zip(*rle_tokens_cmp) for item in sublist]
 
@@ -2170,12 +2494,14 @@ def rle_to_tokens_tf(rle_cmp, shape, length_as_class,
     return rle_tokens
 
 
-def mask_from_logits(
+def mask_from_token_logits(
         rle_logits,
         shape,
         max_length,
         n_classes,
-        starts_offset, lengths_offset, class_offset,
+        starts_offset,
+        lengths_offset,
+        class_offset,
         length_as_class,
         starts_2d,
         flat_order,
@@ -2183,35 +2509,61 @@ def mask_from_logits(
         max_seq_len,
         vocab_size,
         allow_overlap,
+        diff_mask,
+        ignore_invalid,
 ):
-    rle_cmp = rle_from_logits(
-        rle_logits=rle_logits,
-        shape=shape,
-        max_length=max_length,
-        n_classes=n_classes,
-        starts_offset=starts_offset,
-        lengths_offset=lengths_offset,
-        class_offset=class_offset,
-        time_as_class=False,
-        length_as_class=length_as_class,
-        flat_order=flat_order,
-        starts_2d=starts_2d,
-        multi_class=multi_class,
-        vid_len=1,
-        max_seq_len=max_seq_len,
-        vocab_size=vocab_size,
-        allow_overlap=allow_overlap,
-    )
-    starts, lengths = rle_cmp[:2]
-    if len(rle_cmp) == 3:
-        class_ids = rle_cmp[2]
+    if diff_mask:
+        rle_cmp = diff_rle_from_logits(
+            rle_logits=rle_logits,
+            shape=shape,
+            n_classes=n_classes,
+            starts_offset=starts_offset,
+            class_offset=class_offset,
+            flat_order=flat_order,
+            starts_2d=starts_2d,
+            max_seq_len=max_seq_len,
+            vocab_size=vocab_size,
+            allow_overlap=allow_overlap,
+        )
+        starts, class_ids = rle_cmp
+        lengths = np.ones_like(np.asarray(starts))
     else:
-        class_ids = [1, ] * len(starts)
+        rle_cmp = rle_from_logits(
+            rle_logits=rle_logits,
+            shape=shape,
+            max_length=max_length,
+            n_classes=n_classes,
+            starts_offset=starts_offset,
+            lengths_offset=lengths_offset,
+            class_offset=class_offset,
+            length_as_class=length_as_class,
+            flat_order=flat_order,
+            starts_2d=starts_2d,
+            multi_class=multi_class,
+            max_seq_len=max_seq_len,
+            vocab_size=vocab_size,
+            allow_overlap=allow_overlap,
+        )
+        starts, lengths = rle_cmp[:2]
+        if len(rle_cmp) == 3:
+            class_ids = rle_cmp[2]
+        else:
+            class_ids = [1, ] * len(starts)
 
     mask = rle_to_mask(
         starts, lengths, class_ids,
         shape,
     )
+
+    if diff_mask:
+        mask, rle_cmp = mask_from_diff(
+            mask,
+            rle_cmp=rle_cmp,
+            n_frg_classes=n_classes - 1,
+            flatten=diff_mask == 2,
+            flat_order=flat_order,
+            ignore_invalid=ignore_invalid
+        )
     return mask, rle_cmp
 
 
@@ -2231,7 +2583,7 @@ def vid_mask_from_logits(
         vocab_size,
         allow_overlap,
 ):
-    rle_cmp = rle_from_logits(
+    rle_cmp = vid_rle_from_logits(
         rle_logits,
         shape,
         max_length,
@@ -2265,7 +2617,102 @@ def selective_argmax(arr, idx_range):
     return start_idx + np.argmax(arr[:, start_idx:end_idx], axis=1)
 
 
-def rle_from_logits(
+def diff_rle_from_logits(
+        rle_logits,
+        shape,
+        n_classes,
+        starts_offset,
+        class_offset,
+        starts_2d,
+        flat_order,
+        max_seq_len,
+        vocab_size,
+        allow_overlap,
+):
+    """generate RLE from selective argmax over raw logits for non-differential static masks"""
+
+    max_seq_len_, vocab_size_ = rle_logits.shape
+    assert max_seq_len_ == max_seq_len, "max_seq_len mismatch"
+    assert vocab_size_ == vocab_size, "vocab_size mismatch"
+
+    n_rows, n_cols = shape
+
+    rle_tokens_raw = np.argmax(rle_logits, axis=1).squeeze()
+    n_tokens_raw = len(rle_tokens_raw)
+
+    """
+    index of the first non-zero (non-padding) token from end
+    EOS is the next token to this one, i.e. the last continuous zero token from end
+    """
+    rle_tokens_inv = rle_tokens_raw[::-1]
+    eos_idxs = np.nonzero(rle_tokens_inv)[0]
+    if len(eos_idxs) == 0:
+        eos_idx = 0
+    else:
+        eos_idx = n_tokens_raw - eos_idxs[0]
+
+    rle_logits_non_padding = rle_logits[:eos_idx, :]
+    seq_len = rle_logits_non_padding.shape[0]
+
+    if starts_2d:
+        assert n_rows == n_cols, "n_rows and n_cols must be same for starts_2d"
+        starts_bins = n_rows
+    else:
+        starts_bins = n_rows * n_cols
+
+    assert vocab_size >= starts_offset + starts_bins, "invalid vocab_size"
+
+    n_tokens_per_run = 2
+    if starts_2d:
+        n_tokens_per_run += 1
+
+    if seq_len < n_tokens_per_run:
+        rle_cmp = [[], []]
+        return rle_cmp
+
+    if seq_len % n_tokens_per_run != 0:
+        n_extra_tokens = seq_len % n_tokens_per_run
+        rle_logits_non_padding = rle_logits_non_padding[:-n_extra_tokens, :]
+
+    rle_id = 0
+    starts_token_range = [starts_offset, starts_offset + starts_bins]
+    if starts_2d:
+        starts_rows_logits = rle_logits_non_padding[rle_id::n_tokens_per_run, :]
+        starts_rows_tokens = selective_argmax(starts_rows_logits, starts_token_range)
+        starts_rows = starts_rows_tokens - starts_offset - 1
+        rle_id += 1
+
+        starts_cols_logits = rle_logits_non_padding[rle_id::n_tokens_per_run, :]
+        starts_cols_tokens = selective_argmax(starts_cols_logits, starts_token_range)
+        starts_cols = starts_cols_tokens - starts_offset - 1
+        rle_id += 1
+
+        assert len(starts_rows) == len(starts_cols), "starts_rows-starts_cols len mismatch"
+
+        starts = np.ravel_multi_index((starts_rows, starts_cols), shape, order=flat_order)
+    else:
+        starts_logits = rle_logits_non_padding[rle_id::n_tokens_per_run, :]
+        starts_token_range = [starts_offset, starts_offset + starts_bins]
+        starts_tokens = selective_argmax(starts_logits, starts_token_range)
+        starts = starts_tokens - starts_offset - 1
+        rle_id += 1
+
+    class_bins = 2 * n_classes - 1
+    assert vocab_size >= class_offset + class_bins, "invalid vocab_size"
+
+    class_token_range = [class_offset, class_offset + class_bins]
+    class_logits = rle_logits_non_padding[rle_id::n_tokens_per_run, :]
+    class_tokens = selective_argmax(class_logits, class_token_range)
+    class_ids = class_tokens - class_offset
+
+    assert len(class_ids) == len(starts), "class_ids-starts len mismatch"
+
+    rle_cmp = [starts, class_ids]
+
+    return rle_cmp
+
+
+def vid_rle_from_logits(
         rle_logits,
         shape,
         max_length,
@@ -2281,7 +2728,7 @@ def rle_from_logits(
         vocab_size,
         allow_overlap,
 ):
-    """generate RLE for both static and video masks"""
+    """generate RLE for video masks"""
 
     # assert not starts_2d, "starts_2d is not supported yet"
 
@@ -2414,6 +2861,140 @@ def rle_from_logits(
     return rle_cmp
 
 
+def rle_from_logits(
+        rle_logits,
+        shape,
+        max_length,
+        n_classes,
+        starts_offset, lengths_offset, class_offset,
+        length_as_class,
+        starts_2d,
+        flat_order,
+        multi_class,
+        max_seq_len,
+        vocab_size,
+        allow_overlap,
+):
+    """generate RLE from selective argmax over raw logits for non-differential static masks"""
+
+    max_seq_len_, vocab_size_ = rle_logits.shape
+    assert max_seq_len_ == max_seq_len, "max_seq_len mismatch"
+    assert vocab_size_ == vocab_size, "vocab_size mismatch"
+
+    n_rows, n_cols = shape
+
+    rle_tokens_raw = np.argmax(rle_logits, axis=1).squeeze()
+    n_tokens_raw = len(rle_tokens_raw)
+
+    """
+    index of the first non-zero (non-padding) token from end
+    EOS is the next token to this one, i.e. the last continuous zero token from end
+    """
+    rle_tokens_inv = rle_tokens_raw[::-1]
+    eos_idxs = np.nonzero(rle_tokens_inv)[0]
+    if len(eos_idxs) == 0:
+        eos_idx = 0
+    else:
+        eos_idx = eos_idxs[0]
+        eos_idx = n_tokens_raw - eos_idx
+
+    rle_logits_non_padding = rle_logits[:eos_idx, :]
+    seq_len = rle_logits_non_padding.shape[0]
+
+    if starts_2d:
+        assert n_rows == n_cols, "n_rows and n_cols must be same for starts_2d"
+        starts_bins = n_rows
+    else:
+        starts_bins = n_rows * n_cols
+
+    assert vocab_size >= starts_offset + starts_bins, "invalid vocab_size"
+
+    has_class_tokens = multi_class and not length_as_class
+
+    n_tokens_per_run = 3 if has_class_tokens else 2
+    if starts_2d:
+        n_tokens_per_run += 1
+
+    if seq_len < n_tokens_per_run:
+        rle_cmp = [[], [], []] if has_class_tokens else [[], []]
+        return rle_cmp
+
+    if seq_len % n_tokens_per_run != 0:
+        n_extra_tokens = seq_len % n_tokens_per_run
+        rle_logits_non_padding = rle_logits_non_padding[:-n_extra_tokens, :]
+
+    rle_id = 0
+    starts_token_range = [starts_offset, starts_offset + starts_bins]
+    if starts_2d:
+        starts_rows_logits = rle_logits_non_padding[rle_id::n_tokens_per_run, :]
+        starts_rows_tokens = selective_argmax(starts_rows_logits, starts_token_range)
+        starts_rows = starts_rows_tokens - starts_offset - 1
+        rle_id += 1
+
+        starts_cols_logits = rle_logits_non_padding[rle_id::n_tokens_per_run, :]
+        starts_cols_tokens = selective_argmax(starts_cols_logits, starts_token_range)
+        starts_cols = starts_cols_tokens - starts_offset - 1
+        rle_id += 1
+
+        assert len(starts_rows) == len(starts_cols), "starts_rows-starts_cols len mismatch"
+
+        starts = np.ravel_multi_index((starts_rows, starts_cols), shape, order=flat_order)
+    else:
+        starts_logits = rle_logits_non_padding[rle_id::n_tokens_per_run, :]
+        starts_token_range = [starts_offset, starts_offset + starts_bins]
+        starts_tokens = selective_argmax(starts_logits, starts_token_range)
+        starts = starts_tokens - starts_offset - 1
+        rle_id += 1
+
+    rle_cmp = [starts, ]
+
+    if not length_as_class:
+        assert allow_overlap or starts_offset >= lengths_offset + max_length, ("len_token_range overlaps "
+                                                                               "starts_token_range")
+
+        len_token_range = [lengths_offset, lengths_offset + max_length]
+        len_logits = rle_logits_non_padding[rle_id::n_tokens_per_run, :]
+        len_tokens = selective_argmax(len_logits, len_token_range)
+        lengths = len_tokens - lengths_offset
+
+        starts_ = rle_cmp[0]
+        assert len(lengths) == len(starts_), "lengths-starts len mismatch"
+        rle_cmp.append(lengths)
+        rle_id += 1
+
+    if multi_class or length_as_class:
+        n_classes_ = n_classes
+        if length_as_class:
+            n_total_classes = max_length * (n_classes_ - 1)
+        else:
+            n_total_classes = n_classes_
+
+        assert allow_overlap or starts_offset >= class_offset + n_total_classes, ("class_token_range overlaps "
+                                                                                  "starts_token_range")
+
+        if not length_as_class:
+            assert allow_overlap or lengths_offset >= class_offset + n_total_classes, ("class_token_range overlaps "
+                                                                                       "len_token_range")
+
+        class_token_range = [class_offset, class_offset + n_total_classes]
+        class_logits = rle_logits_non_padding[rle_id::n_tokens_per_run, :]
+        class_tokens = selective_argmax(class_logits, class_token_range)
+        class_ids = class_tokens - class_offset
+
+        starts_ = rle_cmp[0]
+        assert len(class_ids) == len(starts_), "class_ids-starts len mismatch"
+
+        rle_cmp.append(class_ids)
+
+    if length_as_class:
+        assert len(rle_cmp) == 2, "rle_cmp len must be 2 for length_as_class"
+        starts, lac = rle_cmp
+        lengths, class_ids = rle_from_lac(lac, max_length)
+        rle_cmp = [starts, lengths, class_ids]
+
+    return rle_cmp
+
+
 def mask_from_instance_wise_tokens(
         rle_tokens,
         shape,
@@ -2423,6 +3004,7 @@ def mask_from_instance_wise_tokens(
         starts_2d, flat_order,
         ignore_invalid=False,
         rle_logits=None,
+        max_seq_len=None,
 ):
     mask = np.zeros(tuple(shape), dtype=np.uint8)
     instance_mask_cmb = np.zeros(tuple(shape), dtype=np.uint8)
@@ -2441,13 +3023,17 @@ def mask_from_instance_wise_tokens(
 
     inst_end_idxs = np.nonzero(np.in1d(rle_tokens, class_tokens))[0]
 
-    inst_start_idx = 0
-    n_instances = len(inst_end_idxs)
-    assert n_instances <= 255, "uint8 can only handle upto 255 instances"
+    # inst_rle_lens =list(inst_end_idxs[1:] - inst_end_idxs[:-1] - 1)
+    # inst_rle_lens.insert(0, inst_end_idxs[0])
+    # inst_rle_lens = np.asarray(inst_rle_lens)
+    # valid_inst_ids = np.nonzero(inst_rle_lens >= 2)
 
-    for instance_id in range(n_instances):
-        inst_end_idx = inst_end_idxs[instance_id]
+    n_valid_instances = 0
+    inst_start_idx = 0
+    for inst_end_idx in inst_end_idxs:
         inst_rle_tokens = rle_tokens[inst_start_idx:inst_end_idx]
+        if len(inst_rle_tokens) < 2:
+            continue
         inst_class_token = rle_tokens[inst_end_idx]
         inst_class_id = inst_class_token - class_offset
 
@@ -2470,9 +3056,15 @@ def mask_from_instance_wise_tokens(
             multi_class=False,
             flat_order=flat_order,
             ignore_invalid=ignore_invalid,
+            max_seq_len=max_seq_len,
         )
         starts, lengths = instance_rle_cmp
-        class_ids = [1, ] * len(starts)
+        n_inst_runs = len(starts)
+
+        if n_inst_runs == 0:
+            continue
+
+        class_ids = [1, ] * n_inst_runs
 
         instance_mask = rle_to_mask(
             starts, lengths, class_ids,
@@ -2483,7 +3075,11 @@ def mask_from_instance_wise_tokens(
         instance_info[1].append(inst_class_id)
         instance_info[2].append(instance_score)
 
-        instance_mask_cmb[instance_mask] = instance_id + 1
+        n_valid_instances += 1
+
+        assert n_valid_instances <= 255, "uint8 can only handle upto 255 instances"
+
+        instance_mask_cmb[instance_mask] = n_valid_instances
         mask[instance_mask] = inst_class_id
 
         rle_cmp[0] += list(starts)
@@ -2496,6 +3092,7 @@ def mask_from_instance_wise_tokens(
     instance_info[3] = instance_mask_cmb
     return mask, instance_info, rle_cmp
 
+
 def mask_from_class_wise_tokens(
         rle_tokens,
         shape,
@@ -2504,6 +3101,7 @@ def mask_from_class_wise_tokens(
         starts_offset, lengths_offset, class_offset,
         starts_2d, flat_order,
         ignore_invalid=False,
+        max_length=None,
 ):
     mask = np.zeros(tuple(shape), dtype=np.uint8)
     # starts, lengths, class_ids
@@ -2539,6 +3137,7 @@ def mask_from_class_wise_tokens(
             multi_class=False,
             flat_order=flat_order,
             ignore_invalid=ignore_invalid,
+            max_length=max_length,
         )
         starts, lengths = cls_rle_cmp
         class_ids = [1, ] * len(starts)
@@ -2560,6 +3159,44 @@ def mask_from_class_wise_tokens(
     return mask, rle_cmp
 
 
+def mask_from_tokens_no_starts(
+        rle_tokens,
+        shape,
+        length_as_class,
+        max_length,
+        lengths_offset,
+        class_offset,
+        flat_order,
+):
+    mask = np.zeros(tuple(shape), dtype=np.uint8)
+    if len(rle_tokens) == 0:
+        return mask
+
+    rle_tokens = np.asarray(rle_tokens)
+
+    if length_as_class:
+        assert lengths_offset == class_offset, "lengths_offset and class_offset must be same for length_as_class"
+
+        lac = np.copy(rle_tokens)
+        lac -= class_offset
+        lengths = (lac - 1) % max_length + 1
+        class_ids = (lac - 1) // max_length + 1
+    else:
+        lengths = np.copy(rle_tokens[::2])
+        class_ids = np.copy(rle_tokens[1::2])
+        lengths -= lengths_offset
+        class_ids -= class_offset
+
+    start = 0
+    mask_flat = mask.flatten()
+    for length, class_id in zip(lengths, class_ids, strict=True):
+        mask_flat[start:start + length] = class_id
+        start += length
+    mask = mask_flat.reshape(shape, order=flat_order)
+
+    return mask
+
+
 def mask_from_tokens(
         rle_tokens, shape,
         allow_extra,
@@ -2567,20 +3204,26 @@ def mask_from_tokens(
         max_length,
         starts_offset, lengths_offset, class_offset,
         starts_2d, multi_class, flat_order,
-        ignore_invalid=False,
-
+        ignore_invalid,
+        max_seq_len,
+        diff_mask,
+        n_classes,
 ):
     if len(rle_tokens) == 0:
         mask = np.zeros(tuple(shape), dtype=np.uint8)
-        rle_cmp = [[], []]
-        if not length_as_class and multi_class:
-            rle_cmp.append([])
+        if diff_mask:
+            rle_cmp = [[], []]
+        else:
+            rle_cmp = [[], []]
+            if multi_class and not length_as_class:
+                rle_cmp.append([])
         return mask, rle_cmp
     else:
         rle_cmp = rle_from_tokens(
             rle_tokens,
             shape,
             allow_extra=allow_extra,
+            max_seq_len=max_seq_len,
             length_as_class=length_as_class,
             starts_offset=starts_offset,
             lengths_offset=lengths_offset,
@@ -2589,25 +3232,123 @@ def mask_from_tokens(
             multi_class=multi_class,
             flat_order=flat_order,
             ignore_invalid=ignore_invalid,
+            diff_mask=diff_mask,
         )
-    if length_as_class:
-        starts, lac = rle_cmp
-
-        lengths = (lac - 1) % max_length + 1
-        class_ids = (lac - 1) // max_length + 1
-
-        rle_cmp = [starts, lengths, class_ids]
-
-    starts, lengths = rle_cmp[:2]
-    if multi_class:
-        class_ids = rle_cmp[2]
+    if diff_mask:
+        starts, class_ids = rle_cmp
+        lengths = np.ones_like(starts)
     else:
-        class_ids = [1, ] * len(starts)
+        if length_as_class:
+            starts, lac = rle_cmp
+            lengths = (lac - 1) % max_length + 1
+            class_ids = (lac - 1) // max_length + 1
+
+            rle_cmp = [starts, lengths, class_ids]
+
+        starts, lengths = rle_cmp[:2]
+        if multi_class:
+            class_ids = rle_cmp[2]
+        else:
+            class_ids = [1, ] * len(starts)
 
     mask = rle_to_mask(
         starts, lengths, class_ids,
         shape,
     )
+
+    if diff_mask:
+        mask, rle_cmp = mask_from_diff(
+            mask,
+            rle_cmp,
+            n_frg_classes=n_classes - 1,
+            flatten=diff_mask == 2,
+            flat_order=flat_order,
+            ignore_invalid=ignore_invalid
+        )
+    return mask, rle_cmp
+
+
+def mask_to_diff(mask, n_frg_classes, check=True, flatten=False, flat_order='C'):
+    if flatten:
+        mask_flat = mask.flatten(order=flat_order)
+        mask_flat_aug = np.concatenate(([0, ], mask_flat), axis=0, dtype=np.int32)
+        mask_diff = mask_flat_aug[:-1] - mask_flat_aug[1:]
+    else:
+        zero_col = np.zeros_like(mask, shape=(mask.shape[0], 1), dtype=np.int32)
+        mask_sub_aug = np.concatenate((zero_col, mask), axis=1, dtype=np.int32)
+        mask_diff = mask_sub_aug[:, :-1] - mask_sub_aug[:, 1:]
+
+    neg_idx = mask_diff < 0
+    pos_idx = mask_diff > 0
+    mask_diff[neg_idx] += n_frg_classes + 1
+    mask_diff[pos_idx] += n_frg_classes
+
+    mask_diff = mask_diff.astype(np.uint8)
+
+    if flatten:
+        mask_diff = np.reshape(mask_diff, mask.shape)
+
+    if check:
+        mask_rec = mask_from_diff(
+            np.copy(mask_diff),
+            rle_cmp=None,
+            n_frg_classes=n_frg_classes,
+            flatten=flatten,
+            flat_order='C',
+            ignore_invalid=False)
+
+        if not np.array_equal(mask, mask_rec):
+            print("mask_rec mismatch")
+
+            mask_sub_diff_vis = mask_id_to_vis(mask_diff, n_classes=n_frg_classes * 2, copy=True)
+            mask_vis = mask_id_to_vis(mask, n_classes=n_frg_classes, copy=True)
+            mask_rec_vis = mask_id_to_vis(mask_rec, n_classes=n_frg_classes, copy=True)
+
+            cv2.imshow('mask_diff', mask_sub_diff_vis)
+            cv2.imshow('mask', mask_vis)
+            cv2.imshow('mask_rec', mask_rec_vis)
+            cv2.waitKey(0)
+    return mask_diff
+
+
+def mask_from_diff(diff_mask, rle_cmp, n_frg_classes, flatten, flat_order, ignore_invalid):
+    diff_mask_int = diff_mask.astype(np.int32)
+    neg_idx = np.logical_and(diff_mask_int <= n_frg_classes, diff_mask_int > 0)
+    pos_idx = diff_mask_int > n_frg_classes
+    diff_mask_int[neg_idx] -= n_frg_classes + 1
+    diff_mask_int[pos_idx] -= n_frg_classes
+
+    if flatten:
+        diff_mask_flat = diff_mask_int.flatten(order=flat_order)
+        mask_flat = np.cumsum(-diff_mask_flat)
+        mask = np.reshape(mask_flat, diff_mask_int.shape)
+    else:
+        mask = np.cumsum(-diff_mask_int, axis=1)
+
+    if ignore_invalid:
+        mask[mask > n_frg_classes] = 0
+        mask[mask < 0] = 0
+    else:
+        assert np.all(mask <= n_frg_classes), "mask must have values <= n_classes"
+        assert np.all(mask >= 0), "mask must have values >= 0"
+
+    mask = mask.astype(np.uint8)
+
+    if rle_cmp is None:
+        return mask
+
+    starts, diff_class_ids = rle_cmp
+    if not ignore_invalid:
+        assert np.all(np.asarray(diff_class_ids) <= n_frg_classes * 2 + 1), \
+            "diff_class_ids must be <=  n_frg_classes * 2 - 1"
+
+    mask_flat = mask.flatten(order=flat_order)
+    class_ids = np.asarray([mask_flat[start] for start in starts])
+    if not ignore_invalid:
+        assert np.all(np.asarray(class_ids) <= n_frg_classes), \
+            "class_ids must be <= n_frg_classes"
+
+    rle_cmp = [starts, class_ids]
     return mask, rle_cmp
 
 
@@ -2771,27 +3512,43 @@ def rle_from_tokens(
         length_as_class,
         starts_offset, lengths_offset, class_offset,
         starts_2d, multi_class, flat_order,
-        ignore_invalid=False
+        ignore_invalid=False,
+        max_seq_len=None,
+        no_starts=False,
+        diff_mask=False,
 ):
-    has_class_tokens = multi_class and not length_as_class
+    assert not no_starts, "no_starts check is not implemented yet"
 
     if length_as_class:
         assert lengths_offset == class_offset, "lengths_offset and class_offset must be same for length_as_class"
 
     seq_len = len(rle_tokens)
 
+    has_class_tokens = diff_mask or (multi_class and not length_as_class)
+
     if seq_len == 0:
-        rle_cmp = [[], [], []] if has_class_tokens else [[], []]
+        if diff_mask:
+            rle_cmp = [[], []]
+        else:
+            rle_cmp = [[], [], []] if has_class_tokens else [[], []]
         return rle_cmp
 
-    n_tokens_per_run = 3 if has_class_tokens else 2
-    if starts_2d:
-        n_tokens_per_run += 1
+    if diff_mask:
+        n_tokens_per_run = 2
+    else:
+        n_tokens_per_run = 3 if has_class_tokens else 2
+        if starts_2d:
+            n_tokens_per_run += 1
 
     n_extra_tokens = seq_len % n_tokens_per_run
     if n_extra_tokens != 0:
+        if max_seq_len is not None and seq_len == max_seq_len:
+            # print(f'rle_tokens length curtailed by max_seq_len {max_seq_len}')
+            allow_extra = True
         if not allow_extra:
-            raise AssertionError(f"rle_tokens length must be divisible by {n_tokens_per_run}")
+            if max_seq_len is not None:
+                print(f'max_seq_len {max_seq_len}')
+            raise AssertionError(f"rle_tokens length {seq_len} is not divisible by {n_tokens_per_run}")
         rle_tokens = rle_tokens[:-n_extra_tokens]
 
     if starts_2d:
@@ -2800,13 +3557,11 @@ def rle_from_tokens(
 
         starts_rows -= (starts_offset + 1)
         starts_cols -= (starts_offset + 1)
-        valid_starts_rows = starts_rows >= 0
-        valid_starts_cols = starts_cols >= 0
+        valid_starts_rows = np.logical_and(starts_rows >= 0, starts_rows < shape[0])
+        valid_starts_cols = np.logical_and(starts_cols >= 0, starts_cols < shape[1])
 
-        assert ignore_invalid or np.all(valid_starts_rows), "starts_rows must be >= 0"
-        assert ignore_invalid or np.all(valid_starts_cols), "starts_rows must be >= 0"
-
-        len_id = 2
+        assert ignore_invalid or np.all(valid_starts_rows), "invalid starts_rows found"
+        assert ignore_invalid or np.all(valid_starts_cols), "invalid starts_cols found"
 
         invalid_starts_rows = np.logical_not(valid_starts_rows)
         invalid_starts_cols = np.logical_not(valid_starts_cols)
@@ -2817,30 +3572,41 @@ def rle_from_tokens(
         starts_cols[invalid_starts_cols] = 0
 
         starts = np.ravel_multi_index((starts_rows, starts_cols), shape, order=flat_order)
-        starts[invalid_starts] = -1
     else:
         starts = np.asarray(rle_tokens[0:][::n_tokens_per_run], dtype=int)
         starts = starts - (starts_offset + 1)
 
-        len_id = 1
+        n_pix = shape[0] * shape[1]
+
+        invalid_starts = np.logical_or(starts < 0, starts >= n_pix)
+
+    starts[invalid_starts] = -1
+
+    valid_bool = starts >= 0
+    rle_cmp = [starts, ]
 
     assert ignore_invalid or np.all(starts >= 0), "starts must be >= 0"
 
-    lengths = np.asarray(rle_tokens[len_id:][::n_tokens_per_run], dtype=int)
-    lengths = lengths - lengths_offset
+    if diff_mask:
+        cls_id = 1
+    else:
+        len_id = 2 if starts_2d else 1
+        cls_id = len_id + 1
+        lengths = np.asarray(rle_tokens[len_id:][::n_tokens_per_run], dtype=int)
+        lengths = lengths - lengths_offset
 
-    assert ignore_invalid or np.all(lengths > 0), "lengths must be > 0"
+        assert ignore_invalid or np.all(lengths > 0), "lengths must be > 0"
 
-    valid_bool = np.logical_and(starts >= 0, lengths > 0)
-
-    rle_cmp = [starts, lengths]
+        valid_bool = np.logical_and(valid_bool, lengths > 0)
+        rle_cmp.append(lengths)
 
     if has_class_tokens:
-        class_ids = np.asarray(rle_tokens[len_id + 1:][::n_tokens_per_run], dtype=int)
+        class_ids = np.asarray(rle_tokens[cls_id:][::n_tokens_per_run], dtype=int)
         class_ids -= class_offset
-        assert ignore_invalid or np.all(class_ids > 0), "class_ids must be > 0"
+        valid_class_ids = class_ids > 0
+        assert ignore_invalid or np.all(valid_class_ids), "class_ids must be > 0"
 
-        valid_bool = np.logical_and(valid_bool, class_ids > 0)
+        valid_bool = np.logical_and(valid_bool, valid_class_ids)
 
         rle_cmp.append(class_ids)
 
@@ -2959,51 +3725,54 @@ def vid_rle_from_tokens(
     return rle_cmp
 
 
-def get_rle_class_ids(mask, starts, lengths, class_id_to_col, order):
-    n_classes = len(class_id_to_col)
+def get_rle_class_ids(mask, starts, n_classes, order):
+    """
+    n_classes includes the background
+    """
+    # n_classes = len(class_id_to_col)
 
     mask_flat = mask.flatten(order=order)
 
     class_ids = [mask_flat[k] for k in starts]
 
-    if 0 in class_ids:
-        print("class_ids must be non-zero")
-        class_ids = np.asarray(class_ids)
-        zero_idxs = np.nonzero(class_ids == 0)[0]
-        mask_vis_rgb = mask_id_to_vis_bgr(mask, class_id_to_col)
-        mask_vis = mask_id_to_vis(mask, n_classes, copy=True)
-        mask_vis_res = resize_mask(mask_vis, (640, 640))
-        cv2.imshow('mask_vis', mask_vis_res)
-
-        for idx in zero_idxs:
-            start, length = starts[idx], lengths[idx]
-            mask_bool_flat = np.zeros_like(mask_flat, dtype=bool)
-            mask_bool_flat[start:start + length] = True
-            mask_bool = np.reshape(mask_bool_flat, mask.shape)
-
-            col = (255, 255, 255)
-
-            mask_vis_rgb[mask_bool] = col
-            mask_vis_rgb_res = resize_mask(mask_vis_rgb, (640, 640))
-
-            cv2.imshow('mask_vis_rgb', mask_vis_rgb_res)
-
-            cv2.waitKey(0)
+    # if 0 in class_ids:
+    #     print("class_ids must be non-zero")
+    #     class_ids = np.asarray(class_ids)
+    #     zero_idxs = np.nonzero(class_ids == 0)[0]
+    #     mask_vis_rgb = mask_id_to_vis_bgr(mask, class_id_to_col)
+    #     mask_vis = mask_id_to_vis(mask, n_classes, copy=True)
+    #     mask_vis_res = resize_mask(mask_vis, (640, 640))
+    #     cv2.imshow('mask_vis', mask_vis_res)
+    #
+    #     for idx in zero_idxs:
+    #         start, length = starts[idx], lengths[idx]
+    #         mask_bool_flat = np.zeros_like(mask_flat, dtype=bool)
+    #         mask_bool_flat[start:start + length] = True
+    #         mask_bool = np.reshape(mask_bool_flat, mask.shape)
+    #
+    #         col = (255, 255, 255)
+    #
+    #         mask_vis_rgb[mask_bool] = col
+    #         mask_vis_rgb_res = resize_mask(mask_vis_rgb, (640, 640))
+    #
+    #         cv2.imshow('mask_vis_rgb', mask_vis_rgb_res)
+    #
+    #         cv2.waitKey(0)
 
     assert np.all(np.asarray(class_ids) > 0), "class_ids must be > 0"
     assert np.all(np.asarray(class_ids) <= n_classes), f"class_ids must be <= {n_classes}"
 
-    for start, length, class_id in zip(starts, lengths, class_ids):
-        run_class_ids = mask_flat[start:start + length]
+    # for start, length, class_id in zip(starts, lengths, class_ids):
+    #     run_class_ids = mask_flat[start:start + length]
+    #
+    #     assert np.all(run_class_ids == class_id), "multiple class IDs found in the same run"
 
-        assert np.all(run_class_ids == class_id), "multiple class IDs found in the same run"
-
-        # if not np.all(run_class_ids == class_id):
-        #     print("multiple class IDs found in the same run")
-        #     mask_vis = mask_id_to_vis(mask, n_classes, copy=True)
-        #     mask_vis = resize_mask(mask_vis, (640, 640), n_classes, is_vis=True)
-        #     cv2.imshow('mask_vis', mask_vis)
-        #     cv2.waitKey(0)
+    # if not np.all(run_class_ids == class_id):
+    #     print("multiple class IDs found in the same run")
+    #     mask_vis = mask_id_to_vis(mask, n_classes, copy=True)
+    #     mask_vis = resize_mask(mask_vis, (640, 640), n_classes, is_vis=True)
+    #     cv2.imshow('mask_vis', mask_vis)
+    #     cv2.waitKey(0)
 
     return class_ids
 
@@ -3109,7 +3878,28 @@ def vid_mask_to_tac(
     return tac_mask
 
 
-def mask_to_rle(mask, max_length, n_classes, order):
+def diff_mask_to_rle(diff_mask, n_classes, order):
+    all_starts = []
+    all_class_ids = []
+
+    diff_n_classes = n_classes * 2 - 1
+
+    assert np.all(diff_mask < diff_n_classes), f"mask pixels must be < {n_classes}"
+
+    diff_mask_flat = diff_mask.flatten(order=order)
+
+    for class_id in range(1, diff_n_classes):
+        starts = np.nonzero(diff_mask_flat == class_id)[0]
+
+        all_class_ids.append(np.full_like(starts, class_id))
+        all_starts.append(starts)
+
+    all_starts, all_class_ids = flatten_and_sort_runs(all_starts, all_class_ids)
+
+    return all_starts, all_class_ids
+
+
+def mask_to_rle(mask, max_length, n_classes, order, return_unsplit=0):
     """
     https://www.kaggle.com/stainsby/fast-tested-rle
     https://ccshenyltw.medium.com/run-length-encode-and-decode-a33383142e6b
@@ -3117,7 +3907,11 @@ def mask_to_rle(mask, max_length, n_classes, order):
     all_starts = []
     all_lengths = []
 
-    assert np.all(mask <= n_classes), f"mask pixels must be <= {n_classes}"
+    if return_unsplit:
+        all_starts_unsplit = []
+        all_lengths_unsplit = []
+
+    assert np.all(mask < n_classes), f"mask pixels must be < {n_classes}"
 
     for class_id in range(1, n_classes):
         mask_binary = (mask == class_id).astype(np.uint8)
@@ -3137,6 +3931,10 @@ def mask_to_rle(mask, max_length, n_classes, order):
             runs[1::2] -= runs[::2]
             starts, lengths = runs[::2], runs[1::2]
 
+            if return_unsplit:
+                all_starts_unsplit.append(np.copy(starts))
+                all_lengths_unsplit.append(np.copy(lengths))
+
             if max_length > 0:
                 overlong_runs = np.nonzero(lengths > max_length)[0]
                 if len(overlong_runs) > 0:
@@ -3151,17 +3949,82 @@ def mask_to_rle(mask, max_length, n_classes, order):
         all_starts.append(starts)
         all_lengths.append(lengths)
 
+    all_starts, all_lengths = flatten_and_sort_runs(all_starts, all_lengths)
+
+    if return_unsplit:
+        all_starts_unsplit, all_lengths_unsplit = flatten_and_sort_runs(all_starts_unsplit, all_lengths_unsplit)
+        return all_starts, all_lengths, all_starts_unsplit, all_lengths_unsplit
+    else:
+        return all_starts, all_lengths
+
+
+def mask_to_rle_no_starts(mask, max_length, n_classes, order, return_unsplit):
+    """
+    https://www.kaggle.com/stainsby/fast-tested-rle
+    https://ccshenyltw.medium.com/run-length-encode-and-decode-a33383142e6b
+    """
+
+    assert np.all(mask < n_classes), f"mask pixels must be < {n_classes}"
+
+    mask_with_bkg_as_class = mask + 1
+
+    mask_with_bkg_flat = mask_with_bkg_as_class.flatten(order=order)
+    pixels = np.concatenate([[0], mask_with_bkg_flat, [0]])
+    runs = np.nonzero(pixels[1:] != pixels[:-1])[0]
+
+    if len(runs) == 0:
+        lengths = []
+        class_ids = []
+        lengths_unsplit = []
+        class_ids_unsplit = []
+    else:
+
+        starts = runs[:-1]
+        lengths = runs[1:] - runs[:-1]
+        assert len(starts) == len(lengths), " len mismatch between starts and lengths"
+
+        mask_flat = mask.flatten(order=order)
+        class_ids = [mask_flat[k] for k in starts]
+
+        lengths_unsplit = lengths
+        class_ids_unsplit = class_ids
+
+        if max_length > 0:
+            overlong_runs = np.nonzero(lengths > max_length)[0]
+            if len(overlong_runs) > 0:
+                starts, lengths = split_runs(overlong_runs, starts, lengths, max_length)
+            assert np.all(lengths <= max_length), f"run length cannot be > {max_length}"
+            class_ids = [mask_flat[k] for k in starts]
+
+        n_pix = mask.size
+        assert np.all(starts <= n_pix - 1), f"starts cannot be > {n_pix - 1}"
+        assert np.all(lengths > 0), "run length cannot be 0"
+
+    if return_unsplit:
+        return lengths, class_ids, lengths_unsplit, class_ids_unsplit
+    else:
+        return lengths, class_ids
+
+
+def flatten_and_sort_runs(all_starts, all_lengths=None):
     all_starts = np.concatenate(all_starts, axis=0)
-    all_lengths = np.concatenate(all_lengths, axis=0)
     sort_idx = np.argsort(all_starts)
     starts = all_starts[sort_idx].astype(np.int64)
-    lengths = all_lengths[sort_idx].astype(np.int64)
 
+    if all_lengths is None:
+        return starts
+
+    all_lengths = np.concatenate(all_lengths, axis=0)
+    lengths = all_lengths[sort_idx].astype(np.int64)
     return starts, lengths
 
 
-def mask_to_rle_tokens_tf(image, masks, config, class_id_to_col, training):
+# Eager mode function - disabled
+def _mask_to_rle_tokens_tf(image, masks, config, class_id_to_col, training):
     max_length = config.dataset.train.max_length
+    if max_length == 0:
+        max_length = config.task.image_size[0]
+
     subsample = config.dataset.train.subsample
     batch_size = config.train.batch_size if training else config.eval.batch_size
 
@@ -3178,7 +4041,8 @@ def mask_to_rle_tokens_tf(image, masks, config, class_id_to_col, training):
 
     max_length_sub = int(max_length / subsample)
 
-    n_cols, n_rows = image.shape[1], image.shape[2]
+    # n_cols, n_rows = image.shape[1], image.shape[2]
+    n_cols, n_rows = config.model.image_size
     n_rows_sub, n_cols_sub = int(n_rows / subsample), int(n_cols / subsample)
 
     n_classes = len(class_id_to_col)
@@ -3232,6 +4096,646 @@ def mask_to_rle_tokens_tf(image, masks, config, class_id_to_col, training):
     return rle_tokens_batch
 
 
+def mask_to_rle_tokens_tf(image, masks, config, class_id_to_col, mhd, training):
+    """
+    Wrapper function that extracts config values and calls the graph-mode function.
+    
+    Args:
+        image: Input image tensor.
+        masks: Input masks tensor.
+        config: Configuration object containing dataset and model parameters.
+        class_id_to_col: Mapping from class IDs to colors. - extract n_classes
+        training: mode to select batch size.
+    Returns:
+        rle_tokens_batch: Tensor containing RLE tokens for the masks.
+    """
+    # Extract all needed values from config before passing to tf.function
+    max_length = config.dataset.train.max_length
+    if max_length == 0:
+        max_length = config.task.image_size[0]
+
+    subsample = config.dataset.train.subsample
+    # batch_size = config.train.batch_size if training else config.eval.batch_size
+    batch_size = tf.shape(image)[0]
+
+    starts_2d = config.dataset.starts_2d
+    length_as_class = config.dataset.length_as_class
+    flat_order = config.dataset.flat_order
+    randomize_runs = config.dataset.randomize_runs
+
+    starts_offset = config.model.coord_vocab_shift
+    lengths_offset = config.model.len_vocab_shift
+    class_offset = config.model.class_vocab_shift
+
+    max_runs = config.model.max_runs
+    max_seq_len = config.model.max_seq_len
+    debug = config.debug
+
+    n_classes = len(class_id_to_col)
+
+    ret = mask_to_rle_tokens_tf_graph_mode(
+        image, masks,
+        max_length, subsample, batch_size,
+        starts_2d, length_as_class, flat_order,
+        starts_offset, lengths_offset, class_offset,
+        max_seq_len, max_runs, n_classes, randomize_runs,
+        mhd, debug
+    )
+
+    if debug:
+        if mhd:
+            coord_vocab_size = config.model.coord_vocab_size
+            len_vocab_size = config.model.len_vocab_size
+            class_vocab_size = config.model.class_vocab_size
+            rle_tokens_x, rle_tokens_y, rle_tokens_l, rle_tokens_c = (k.numpy() for k in ret)
+            assert np.all(np.less(rle_tokens_x, coord_vocab_size)), "rle_tokens_x exceed coord_vocab_size"
+            assert np.all(np.less(rle_tokens_y, coord_vocab_size)), "rle_tokens_y exceed coord_vocab_size"
+            assert np.all(np.less(rle_tokens_l, len_vocab_size)), "rle_tokens_x exceed len_vocab_size"
+            assert np.all(np.less(rle_tokens_c, class_vocab_size)), "rle_tokens_c exceed class_vocab_size"
+        else:
+            vocab_size = config.model.vocab_size
+            rle_tokens = ret[0].numpy()
+            assert np.all(np.less(rle_tokens, vocab_size)), "rle_tokens exceed vocab_size"
+
+    return ret
+
+
+@tf.function
+def _get_class_ids_from_mask(mask_sub, starts, flat_order):
+    """Extract class IDs from mask at RLE start positions."""
+    if flat_order == 'F':
+        mask_flat = tf.reshape(tf.transpose(mask_sub), [-1])
+    else:
+        mask_flat = tf.reshape(mask_sub, [-1])
+    return tf.cast(tf.gather(mask_flat, starts), tf.int64)
+
+
+@tf.function
+def _build_binary_rle_components(starts, lengths):
+    """Build RLE components for BINARY masks."""
+    return starts, lengths
+
+
+@tf.function
+def _build_multiclass_rle_components(starts, lengths, class_ids, max_length_sub, length_as_class):
+    """Build RLE components for MULTICLASS masks. 
+    Returns 3 elements: starts, lengths, class_ids."""
+    if length_as_class:
+        # Length-as-class encoding
+        lac = tf.cast(max_length_sub, tf.int64) * (class_ids - 1) + lengths
+        return starts, lac
+    else:
+        # Standard encoding
+        return starts, lengths, class_ids
+
+
+@tf.function
+def _process_single_mask_to_tokens(
+        mask_sub, max_length_sub, n_classes, flat_order,
+        length_as_class, starts_offset, lengths_offset,
+        class_offset, starts_2d, max_seq_len, max_runs,
+        randomize_runs, mhd, debug):
+    """Process a single mask to RLE tokens."""
+    # Get starts, lengths from RLE conversion
+    starts, lengths = mask_to_rle_graph_mode(mask_sub, max_length_sub, n_classes,
+                                             max_runs, randomize_runs, flat_order)
+
+    shape = tf.shape(mask_sub)
+
+    if debug:
+        n_pix = shape[0] * shape[1]
+
+        starts_np = starts.numpy()
+        assert np.all(np.less(starts_np, n_pix)), f"starts exceed {n_pix}"
+
+        lengths_np = lengths.numpy()
+        assert np.all(np.less_equal(lengths_np, max_length_sub)), f"lengths exceed {max_length_sub}"
+
+    def handle_empty_mask():
+        class_mask = tf.constant([], dtype=tf.int32)
+        rle_tokens = tf.constant([], dtype=tf.int32)
+        return rle_tokens, class_mask
+
+    def handle_non_empty_mask():
+        # Build RLE components based on mask type
+        if n_classes > 2:
+            # Multiclass case
+            class_ids = _get_class_ids_from_mask(mask_sub, starts, flat_order)
+            if length_as_class:
+                # will return 2 elements: starts, lac
+                rle_starts, rle_lac = _build_multiclass_rle_components(
+                    starts, lengths, class_ids, max_length_sub, length_as_class)
+                if debug:
+                    max_lac = (n_classes - 1) * max_length_sub
+                    rle_lac_np = rle_lac.numpy()
+                    assert np.all(np.less_equal(rle_lac_np, max_lac)), "rle_lac exceed max_lac"
+                rle_tokens, class_mask = _rle_to_tokens_multiclass_lac(
+                    rle_starts, rle_lac, tf.shape(mask_sub),
+                    starts_offset, class_offset, starts_2d, flat_order, mhd, debug)
+
+            else:
+                # returns 3 elements: starts, lengths, class_ids
+                rle_starts, rle_lengths, rle_class_ids = _build_multiclass_rle_components(
+                    starts, lengths, class_ids, max_length_sub, length_as_class)
+                rle_tokens, class_mask = _rle_to_tokens_multiclass_standard(
+                    rle_starts, rle_lengths, rle_class_ids, tf.shape(mask_sub),
+                    starts_offset, lengths_offset, class_offset, starts_2d, flat_order, mhd, debug)
+        else:
+            # Binary case
+            rle_starts, rle_lengths = _build_binary_rle_components(starts, lengths)
+            rle_tokens, class_mask = _rle_to_tokens_binary(
+                rle_starts, rle_lengths, tf.shape(mask_sub),
+                starts_offset, lengths_offset, starts_2d, flat_order, 0, debug)
+        return rle_tokens, class_mask
+
+    def handle_empty_mask_mhd():
+        rle_tokens_x = tf.constant([], dtype=tf.int32)
+        rle_tokens_y = tf.constant([], dtype=tf.int32)
+        rle_tokens_l = tf.constant([], dtype=tf.int32)
+        rle_tokens_c = tf.constant([], dtype=tf.int32)
+        return rle_tokens_x, rle_tokens_y, rle_tokens_l, rle_tokens_c
+
+    def handle_non_empty_mask_mhd():
+        # Build RLE components based on mask type
+        class_ids = _get_class_ids_from_mask(mask_sub, starts, flat_order)
+        # returns 3 elements: starts, lengths, class_ids
+        rle_starts, rle_lengths, rle_class_ids = _build_multiclass_rle_components(
+            starts, lengths, class_ids, max_length_sub, length_as_class)
+        rle_tokens_x, rle_tokens_y, rle_tokens_l, rle_tokens_c = _rle_to_tokens_multiclass_standard(
+            rle_starts, rle_lengths, rle_class_ids, tf.shape(mask_sub),
+            starts_offset, lengths_offset, class_offset, starts_2d, flat_order, 1, debug)
+
+        return rle_tokens_x, rle_tokens_y, rle_tokens_l, rle_tokens_c
+
+    # Choose processing path based on whether we have any RLE runs
+    if mhd:
+        rle_tokens_x, rle_tokens_y, rle_tokens_l, rle_tokens_c = tf.cond(
+            tf.greater(tf.size(starts), 0),
+            handle_non_empty_mask_mhd,
+            handle_empty_mask_mhd
+        )
+        # Truncate and pad to fixed length
+        rle_tokens_x, rle_tokens_y, rle_tokens_l, rle_tokens_c = _truncate_and_pad_tokens_mhd(
+            rle_tokens_x, rle_tokens_y, rle_tokens_l, rle_tokens_c, max_seq_len)
+        return rle_tokens_x, rle_tokens_y, rle_tokens_l, rle_tokens_c
+    else:
+        rle_tokens, class_mask = tf.cond(
+            tf.greater(tf.size(starts), 0),
+            handle_non_empty_mask,
+            handle_empty_mask
+        )
+        # Truncate and pad to fixed length
+        rle_tokens_trunc, class_mask = _truncate_and_pad_tokens(
+            rle_tokens, class_mask, max_seq_len)
+
+        return rle_tokens_trunc, class_mask
+
+
+@tf.function
+def _truncate_and_pad_tokens(rle_tokens, class_mask, max_seq_len):
+    """Truncate tokens to max length and pad to fixed size."""
+    # Truncate to max sequence length
+    # TODO: find an optimal way to truncate RLE that results in minimal loss in mask quality
+
+    # TODO: find a way to postprocess masks reconstructed from truncated RLE
+    #  to recover as much quality as possible (e.g. with morphological operations )
+    # rle_tokens_truncated = rle_tokens[:max_seq_len]
+    # class_mask_truncated = class_mask[:max_seq_len]
+
+    rle_len = tf.shape(rle_tokens)[0]
+
+    tf.Assert(rle_len <= max_seq_len, [rle_len, max_seq_len])
+
+    rle_tokens_truncated = rle_tokens
+    class_mask_truncated = class_mask
+
+    # Pad to fixed length
+    current_len = tf.shape(rle_tokens_truncated)[0]
+    pad_length = max_seq_len - current_len
+
+    try:
+        padding_value = vocab.PADDING_TOKEN
+    except:
+        padding_value = 0
+
+    rle_tokens_padded = tf.pad(
+        rle_tokens_truncated,
+        [[0, pad_length]],
+        constant_values=padding_value
+    )
+    class_mask_padded = tf.pad(
+        class_mask_truncated,
+        [[0, pad_length]],
+        constant_values=0
+    )
+
+    # Ensure fixed shape
+    rle_tokens_padded = tf.reshape(rle_tokens_padded, [max_seq_len])
+    class_mask_padded = tf.reshape(class_mask_padded, [max_seq_len])
+
+    return rle_tokens_padded, class_mask_padded
+
+
+def pad_tokens(rle_tokens_truncated, max_seq_len):
+    # Pad to fixed length
+    current_len = tf.shape(rle_tokens_truncated)[0]
+    pad_length = max_seq_len - current_len
+
+    try:
+        padding_value = vocab.PADDING_TOKEN
+    except:
+        padding_value = 0
+
+    rle_tokens_padded = tf.pad(
+        rle_tokens_truncated,
+        [[0, pad_length]],
+        constant_values=padding_value
+    )
+    # Ensure fixed shape
+    rle_tokens_padded = tf.reshape(rle_tokens_padded, [max_seq_len])
+
+    return rle_tokens_padded
+
+
+@tf.function
+def _truncate_and_pad_tokens_mhd(rle_tokens_x, rle_tokens_y, rle_tokens_l, rle_tokens_c, max_seq_len):
+    """Truncate tokens to max length and pad to fixed size."""
+    # Truncate to max sequence length
+    # TODO: find an optimal way to truncate RLE that results in minimal loss in mask quality
+
+    # TODO: find a way to postprocess masks reconstructed from truncated RLE
+    #  to recover as much quality as possible (e.g. with morphological operations )
+    # rle_tokens_truncated = rle_tokens[:max_seq_len]
+    # class_mask_truncated = class_mask[:max_seq_len]
+
+    rle_len_x = tf.shape(rle_tokens_x)[0]
+    rle_len_y = tf.shape(rle_tokens_y)[0]
+    rle_len_l = tf.shape(rle_tokens_l)[0]
+    rle_len_c = tf.shape(rle_tokens_c)[0]
+
+    tf.Assert(rle_len_x <= max_seq_len, [rle_len_x, max_seq_len])
+    tf.Assert(rle_len_y <= max_seq_len, [rle_len_y, max_seq_len])
+    tf.Assert(rle_len_l <= max_seq_len, [rle_len_l, max_seq_len])
+    tf.Assert(rle_len_c <= max_seq_len, [rle_len_c, max_seq_len])
+
+    rle_tokens_x_padded = pad_tokens(rle_tokens_x, max_seq_len)
+    rle_tokens_y_padded = pad_tokens(rle_tokens_y, max_seq_len)
+    rle_tokens_l_padded = pad_tokens(rle_tokens_l, max_seq_len)
+    rle_tokens_c_padded = pad_tokens(rle_tokens_c, max_seq_len)
+
+    return rle_tokens_x_padded, rle_tokens_y_padded, rle_tokens_l_padded, rle_tokens_c_padded
+
+
+@tf.function
+def mask_to_rle_tokens_tf_graph_mode(
+        image, masks,
+        max_length, subsample, batch_size,
+        starts_2d, length_as_class, flat_order,
+        starts_offset, lengths_offset, class_offset,
+        max_seq_len, max_runs, n_classes,
+        randomize_runs, mhd, debug
+):
+    """
+    Graph-mode compatible function for converting masks to RLE tokens.
+    """
+    max_length_sub = tf.cast(max_length / subsample, tf.int32)
+
+    scale = 1. / subsample
+    input_size = tf.cast(tf.shape(image)[1:3], tf.float32)
+    scaled_size = tf.cast(tf.multiply(input_size, scale), tf.int32)
+
+    masks_sub = tf.image.resize(masks, tf.cast(scaled_size, tf.int32),
+                                method="nearest", antialias=False)
+    if mhd:
+        rle_tokens_x_ta = tf.TensorArray(dtype=tf.int32, size=batch_size, dynamic_size=False)
+        rle_tokens_y_ta = tf.TensorArray(dtype=tf.int32, size=batch_size, dynamic_size=False)
+        rle_tokens_l_ta = tf.TensorArray(dtype=tf.int32, size=batch_size, dynamic_size=False)
+        rle_tokens_c_ta = tf.TensorArray(dtype=tf.int32, size=batch_size, dynamic_size=False)
+    else:
+        # Graph-mode batch processing
+        rle_tokens_ta = tf.TensorArray(dtype=tf.int32, size=batch_size, dynamic_size=False)
+        class_mask_ta = tf.TensorArray(dtype=tf.int32, size=batch_size, dynamic_size=False)
+
+    # rle_tokens_len_ta = tf.TensorArray(dtype=tf.int32, size=batch_size, dynamic_size=False)
+
+    def process_batch_item_mhd(batch_id, rle_tokens_x_ta, rle_tokens_y_ta, rle_tokens_l_ta, rle_tokens_c_ta):
+        # Get current mask
+        mask_sub = tf.squeeze(masks_sub[batch_id, ...])
+
+        # Process single mask to tokens
+        rle_tokens_x, rle_tokens_y, rle_tokens_l, rle_tokens_c = _process_single_mask_to_tokens(
+            mask_sub, max_length_sub, n_classes, flat_order,
+            length_as_class, starts_offset, lengths_offset,
+            class_offset, starts_2d, max_seq_len, max_runs,
+            randomize_runs, mhd, debug)
+
+        rle_tokens_x_ta = rle_tokens_x_ta.write(batch_id, rle_tokens_x)
+        rle_tokens_y_ta = rle_tokens_y_ta.write(batch_id, rle_tokens_y)
+        rle_tokens_l_ta = rle_tokens_l_ta.write(batch_id, rle_tokens_l)
+        rle_tokens_c_ta = rle_tokens_c_ta.write(batch_id, rle_tokens_c)
+
+        return batch_id + 1, rle_tokens_x_ta, rle_tokens_y_ta, rle_tokens_l_ta, rle_tokens_c_ta
+
+    def process_batch_item(batch_id, rle_tokens_ta, class_mask_ta):
+        # Get current mask
+        mask_sub = tf.squeeze(masks_sub[batch_id, ...])
+
+        # Process single mask to tokens
+        rle_tokens_final, class_mask = _process_single_mask_to_tokens(
+            mask_sub, max_length_sub, n_classes, flat_order,
+            length_as_class, starts_offset, lengths_offset,
+            class_offset, starts_2d, max_seq_len, max_runs,
+            randomize_runs, mhd, debug)
+
+        rle_tokens_ta = rle_tokens_ta.write(batch_id, rle_tokens_final)
+        class_mask_ta = class_mask_ta.write(batch_id, class_mask)
+
+        return batch_id + 1, rle_tokens_ta, class_mask_ta
+
+    def batch_condition(batch_id, rle_tokens_ta, class_mask_ta):
+        return tf.less(batch_id, batch_size)
+
+    def batch_condition_mhd(batch_id, rle_tokens_x_ta, rle_tokens_y_ta, rle_tokens_l_ta, rle_tokens_c_ta):
+        return tf.less(batch_id, batch_size)
+
+    # Process all items in batch
+
+    if mhd:
+        (_, final_rle_tokens_x_ta, final_rle_tokens_y_ta,
+         final_rle_tokens_l_ta, final_rle_tokens_c_ta) = tf.while_loop(
+            batch_condition_mhd,
+            process_batch_item_mhd,
+            [0, rle_tokens_x_ta, rle_tokens_y_ta, rle_tokens_l_ta, rle_tokens_c_ta],
+            parallel_iterations=10
+        )
+        with tf.device("CPU:0"):
+            rle_tokens_x_batch = final_rle_tokens_x_ta.stack()
+            rle_tokens_y_batch = final_rle_tokens_y_ta.stack()
+            rle_tokens_l_batch = final_rle_tokens_l_ta.stack()
+            rle_tokens_c_batch = final_rle_tokens_c_ta.stack()
+
+            rle_tokens_x_batch = tf.stop_gradient(rle_tokens_x_batch)
+            rle_tokens_y_batch = tf.stop_gradient(rle_tokens_y_batch)
+            rle_tokens_l_batch = tf.stop_gradient(rle_tokens_l_batch)
+            rle_tokens_c_batch = tf.stop_gradient(rle_tokens_c_batch)
+
+        return rle_tokens_x_batch, rle_tokens_y_batch, rle_tokens_l_batch, rle_tokens_c_batch
+    else:
+        _, final_rle_tokens_ta, final_class_mask_ta = tf.while_loop(
+            batch_condition,
+            process_batch_item,
+            [0, rle_tokens_ta, class_mask_ta],
+            parallel_iterations=10
+        )
+
+        # with tf.device("CPU:0"):
+        rle_tokens_batch = final_rle_tokens_ta.stack()
+        class_mask_batch = final_class_mask_ta.stack()
+
+        rle_tokens_batch = tf.stop_gradient(rle_tokens_batch)
+        class_mask_batch = tf.stop_gradient(class_mask_batch)
+
+        return rle_tokens_batch, class_mask_batch
+
+
+@tf.function
+def _encode_starts_1d(starts, starts_offset):
+    """Encode 1D start positions as tokens."""
+    return starts + (starts_offset + 1)
+
+
+@tf.function
+def _encode_starts_2d(starts, shape, starts_offset, flat_order, debug):
+    """Encode 2D start positions as tokens."""
+    if flat_order == 'C':
+        starts_rows = starts // tf.cast(shape[1], tf.int64)
+        starts_cols = starts % tf.cast(shape[1], tf.int64)
+    else:  # Fortran order
+        starts_rows = starts % tf.cast(shape[0], tf.int64)
+        starts_cols = starts // tf.cast(shape[0], tf.int64)
+
+    if debug:
+        starts_rows_np = starts_rows.numpy()
+        assert np.all(np.less(starts_rows_np, shape[0])), f"starts_rows exceed {shape[0]}"
+        starts_cols_np = starts_cols.numpy()
+        assert np.all(np.less(starts_cols_np, shape[1])), f"starts_cols exceed {shape[1]}"
+
+    starts_rows_tokens = starts_rows + (starts_offset + 1)
+    starts_cols_tokens = starts_cols + (starts_offset + 1)
+
+    # Interleave coordinates: [row1, col1, row2, col2, ...]
+    coords_stacked = tf.stack([starts_rows_tokens, starts_cols_tokens], axis=1)
+    return tf.reshape(coords_stacked, [-1])
+
+
+@tf.function
+def _rle_to_tokens_binary(starts, lengths, shape, starts_offset, lengths_offset, starts_2d, flat_order, mhd, debug):
+    """Convert binary RLE to tokens (no class information)."""
+    lengths_tokens = lengths + lengths_offset
+    class_mask = None
+
+    if starts_2d:
+        starts_tokens = _encode_starts_2d(starts, shape, starts_offset, flat_order, debug)
+        # 2D: [row1, col1, length1, row2, col2, length2, ...]
+        n_runs = tf.shape(lengths)[0]
+        coords_pairs = tf.reshape(starts_tokens, [n_runs, 2])
+        all_tokens = [
+            coords_pairs[:, 0],  # rows
+            coords_pairs[:, 1],  # cols
+            lengths_tokens  # lengths
+        ]
+    else:
+        starts_tokens = _encode_starts_1d(starts, starts_offset)
+        # 1D: [start1, length1, start2, length2, ...]
+        all_tokens = [starts_tokens, lengths_tokens]
+
+    if mhd:
+        all_tokens = [tf.cast(tf.reshape(k, [-1]), tf.int32) for k in all_tokens]
+    else:
+        all_tokens = tf.stack(all_tokens, axis=1)
+        all_tokens = tf.cast(tf.reshape(all_tokens, [-1]), tf.int32)
+        class_mask = tf.zeros_like(all_tokens)
+
+    return all_tokens, class_mask
+
+
+@tf.function
+def _rle_to_tokens_multiclass_standard(starts, lengths, class_ids, shape,
+                                       starts_offset, lengths_offset, class_offset,
+                                       starts_2d, flat_order, mhd, debug):
+    """Convert multiclass RLE to tokens (standard encoding with separate class tokens)."""
+    lengths_tokens = lengths + lengths_offset
+    class_tokens = class_ids + class_offset
+    class_mask = None
+
+    if starts_2d:
+        starts_tokens = _encode_starts_2d(starts, shape, starts_offset, flat_order, debug)
+        # 2D: [row1, col1, length1, class1, row2, col2, length2, class2, ...]
+        n_runs = tf.shape(lengths)[0]
+        coords_pairs = tf.reshape(starts_tokens, [n_runs, 2])
+
+        all_tokens = [
+            coords_pairs[:, 0],  # rows
+            coords_pairs[:, 1],  # cols
+            lengths_tokens,  # lengths
+            class_tokens  # classes
+        ]
+        if not mhd:
+            class_mask = tf.stack([
+                tf.zeros_like(coords_pairs[:, 0]),  # rows
+                tf.zeros_like(coords_pairs[:, 1]),  # cols
+                tf.zeros_like(lengths_tokens),  # lengths
+                tf.ones_like(class_tokens)  # length-as-class
+            ], axis=1)
+    else:
+        starts_tokens = _encode_starts_1d(starts, starts_offset)
+        # 1D: [start1, length1, class1, start2, length2, class2, ...]
+        all_tokens = [starts_tokens, lengths_tokens, class_tokens]
+        if not mhd:
+            class_mask = tf.stack([
+                tf.zeros_like(starts_tokens),  # rows
+                tf.zeros_like(lengths_tokens),  # rows
+                tf.ones_like(class_tokens)  # length-as-class
+            ], axis=1)
+
+    if mhd:
+        all_tokens = [tf.cast(tf.reshape(k, [-1]), tf.int32) for k in all_tokens]
+        return all_tokens
+    else:
+        all_tokens = tf.stack(all_tokens, axis=1)
+        all_tokens = tf.cast(tf.reshape(all_tokens, [-1]), tf.int32)
+        class_mask = tf.cast(tf.reshape(class_mask, [-1]), tf.int32)
+        return all_tokens, class_mask
+
+
+@tf.function
+def _rle_to_tokens_multiclass_lac(starts, lac, shape, starts_offset, class_offset, starts_2d,
+                                  flat_order, mhd, debug):
+    """Convert multiclass RLE to tokens (length-as-class encoding)."""
+    lac_tokens = lac + class_offset
+    class_mask = None
+
+    if starts_2d:
+        starts_tokens = _encode_starts_2d(starts, shape, starts_offset, flat_order, debug)
+        # 2D: [row1, col1, lac1, row2, col2, lac2, ...]
+        n_runs = tf.shape(lac)[0]
+        coords_pairs = tf.reshape(starts_tokens, [n_runs, 2])
+        all_tokens = [
+            coords_pairs[:, 0],  # rows
+            coords_pairs[:, 1],  # cols
+            lac_tokens  # length-as-class
+        ]
+        if not mhd:
+            all_tokens = tf.stack(all_tokens, axis=1)
+            class_mask = tf.stack([
+                tf.zeros_like(coords_pairs[:, 0]),  # rows
+                tf.zeros_like(coords_pairs[:, 1]),  # cols
+                tf.ones_like(lac_tokens)  # length-as-class
+            ], axis=1)
+    else:
+        starts_tokens = _encode_starts_1d(starts, starts_offset)
+        # 1D: [start1, lac1, start2, lac2, ...]
+        all_tokens = [starts_tokens, lac_tokens]
+
+        if not mhd:
+            all_tokens = tf.stack(all_tokens, axis=1)
+            class_mask = tf.stack([
+                tf.zeros_like(starts_tokens),  # rows
+                tf.ones_like(lac_tokens)  # length-as-class
+            ], axis=1)
+
+    if mhd:
+        all_tokens = [tf.cast(tf.reshape(k, [-1]), tf.int32) for k in all_tokens]
+    else:
+        all_tokens = tf.cast(tf.reshape(all_tokens, [-1]), tf.int32)
+        class_mask = tf.cast(tf.reshape(class_mask, [-1]), tf.int32)
+
+    return all_tokens, class_mask
+
+
+@tf.function
+def rle_to_tokens_tf_graph_mode(rle_cmp, shape, length_as_class,
+                                starts_offset, lengths_offset, class_offset,
+                                starts_2d, flat_order):
+    """
+    Not used currently - replaced by:
+    _rle_to_tokens_binary, _rle_to_tokens_multiclass_standard, _rle_to_tokens_multiclass_lac
+    """
+    raise NotImplementedError
+    starts, lengths = rle_cmp[0], rle_cmp[1]
+
+    # Handle empty case
+    def empty_case():
+        return tf.constant([], dtype=tf.int32)
+
+    def process_tokens():
+        # Handle length encoding
+        if length_as_class:
+            # In LAC mode, lengths already contain class information
+            processed_lengths = lengths + class_offset
+        else:
+            processed_lengths = lengths + lengths_offset
+
+        # Coordinate encoding, 1d or 2d
+        if starts_2d:
+            starts_tokens = _encode_starts_2d(starts, shape, starts_offset, flat_order, debug=0)
+        else:
+            starts_tokens = _encode_starts_1d(starts, starts_offset)
+
+        # Handle class tokens if present
+        has_class_tokens_cond = tf.greater(tf.size(rle_cmp[2]), 0)
+
+        def add_class_tokens():
+            class_ids = rle_cmp[2] + class_offset
+
+            if starts_2d:
+                # 2D: [row1, col1, length1, class1, row2, col2, length2, class2, ...]
+                n_runs = tf.shape(lengths)[0]
+                coords_pairs = tf.reshape(starts_tokens, [n_runs, 2])
+
+                all_tokens = tf.stack([
+                    coords_pairs[:, 0],  # rows
+                    coords_pairs[:, 1],  # cols
+                    processed_lengths,  # lengths
+                    class_ids  # classes
+                ], axis=1)
+            else:
+                # 1D: [start1, length1, class1, start2, length2, class2, ...]
+                all_tokens = tf.stack([starts_tokens, processed_lengths, class_ids], axis=1)
+
+            return tf.cast(tf.reshape(all_tokens, [-1]), tf.int32)
+
+        def no_class_tokens():
+            if starts_2d:
+                # 2D: [row1, col1, length1, row2, col2, length2, ...]
+                n_runs = tf.shape(lengths)[0]
+                coords_pairs = tf.reshape(starts_tokens, [n_runs, 2])
+
+                all_tokens = tf.stack([
+                    coords_pairs[:, 0],  # rows
+                    coords_pairs[:, 1],  # cols
+                    processed_lengths  # lengths
+                ], axis=1)
+            else:
+                # 1D: [start1, length1, start2, length2, ...]
+                all_tokens = tf.stack([starts_tokens, processed_lengths], axis=1)
+
+            return tf.cast(tf.reshape(all_tokens, [-1]), tf.int32)
+
+        return tf.cond(
+            has_class_tokens_cond,
+            add_class_tokens,
+            no_class_tokens
+        )
+
+    # Handle empty starts case
+    return tf.cond(
+        tf.greater(tf.size(starts), 0),
+        process_tokens,
+        empty_case
+    )
+
+
 def mask_to_rle_tf(mask, max_length, n_classes, order):
     """
     https://www.kaggle.com/stainsby/fast-tested-rle
@@ -3260,9 +4764,9 @@ def mask_to_rle_tf(mask, max_length, n_classes, order):
             lengths = lengths - starts
 
             if max_length > 0:
-                overlong_runs = tf.experimental.numpy.nonzero(lengths > max_length)[0]
-                if len(overlong_runs) > 0:
-                    starts, lengths = split_runs_tf(overlong_runs, starts, lengths, max_length)
+                # overlong_runs = tf.experimental.numpy.nonzero(lengths > max_length)[0]
+                # if len(overlong_runs) > 0:
+                starts, lengths = split_runs_tf(starts, lengths, max_length)
 
             # n_pix = mask.size
             # assert np.all(starts <= n_pix - 1), f"starts cannot be > {n_pix - 1}"
@@ -3280,6 +4784,226 @@ def mask_to_rle_tf(mask, max_length, n_classes, order):
     lengths = tf.gather(all_lengths_tf, sort_idx)
 
     return starts, lengths
+
+
+@tf.function
+def mask_to_rle_graph_mode(mask, max_length, n_classes, max_runs, randomize_runs, order='C'):
+    """
+    Graph-mode compatible TensorFlow implementation of mask-to-RLE conversion.
+    Uses tf.TensorArray instead of Python lists for proper graph execution.
+    """
+    # Initialize TensorArrays for collecting results
+    all_starts_ta = tf.TensorArray(dtype=tf.int64, size=0, dynamic_size=True)
+    all_lengths_ta = tf.TensorArray(dtype=tf.int64, size=0, dynamic_size=True)
+    write_idx = tf.constant(0, dtype=tf.int32)
+
+    # Process each class using tf.while_loop for proper graph execution
+    # starting at class_id = 1 to n_classes, not 0!
+    class_id = tf.constant(1, dtype=tf.int32)
+
+    # Loop over all classes
+    def loop_condition(class_id, write_idx, all_starts_ta, all_lengths_ta):
+        return class_id < n_classes
+
+    # For each class: get starts, lengths and write to TensorArrays
+    def loop_body(class_id, write_idx, all_starts_ta, all_lengths_ta):
+        mask_binary = tf.equal(mask, tf.cast(class_id, tf.uint8))
+        mask_uint8 = tf.cast(mask_binary, tf.uint8)
+
+        # Flattening
+        if order == 'C':
+            mask_flat = tf.reshape(mask_uint8, [-1])
+        else:  # order == 'F'
+            mask_flat = tf.reshape(tf.transpose(mask_uint8), [-1])
+
+        # Padding
+        zeros = tf.zeros([1], dtype=tf.uint8)
+        pixels = tf.concat([zeros, mask_flat, zeros], axis=0)
+
+        # Find run boundaries with difference
+        diff = tf.cast(pixels[1:] != pixels[:-1], tf.int32)
+        run_indices = tf.where(tf.equal(diff, 1))[:, 0]
+
+        # Process runs if they exist
+        def process_runs():
+            # Extract starts and lengths (starts: even indices, lengths: odd)
+            starts = run_indices[::2]
+            ends = run_indices[1::2]
+            lengths = ends - starts
+
+            # Split overlong runs if needed (max_length > 0 and any run exceeds max_length)
+            # The original function mask_to_rle uses these conditions
+            def split_if_needed():
+                # This split function is graph-mode compatible
+                return split_runs_graph_mode(starts, lengths, max_length)
+
+            def no_split():
+                return starts, lengths
+
+            starts_final, lengths_final = tf.cond(
+                tf.logical_and(max_length > 0, tf.reduce_any(lengths > tf.cast(max_length, tf.int64))),
+                split_if_needed,
+                no_split
+            )
+
+            return starts_final, lengths_final
+
+        def no_runs():
+            return tf.constant([], dtype=tf.int64), tf.constant([], dtype=tf.int64)
+
+        # Handle case without runs
+        starts, lengths = tf.cond(
+            tf.shape(run_indices)[0] > 0,
+            process_runs,
+            no_runs
+        )
+
+        # Write results to TensorArrays
+        n_runs = tf.shape(starts)[0]
+
+        # For this class, the while loop writes each run individually to the TensorArrays 
+        # TensorFlow's graph mode requires element-by-element writes
+        # rather than batch operations for dynamic-sized results.
+        def write_runs(i, write_idx, all_starts_ta, all_lengths_ta):
+            all_starts_ta = all_starts_ta.write(write_idx, starts[i])
+            all_lengths_ta = all_lengths_ta.write(write_idx, lengths[i])
+            return i + 1, write_idx + 1, all_starts_ta, all_lengths_ta
+
+        def write_condition(i, write_idx, all_starts_ta, all_lengths_ta):
+            return i < n_runs
+
+        _, write_idx, all_starts_ta, all_lengths_ta = tf.while_loop(
+            write_condition, write_runs,
+            [0, write_idx, all_starts_ta, all_lengths_ta]
+        )
+
+        return class_id + 1, write_idx, all_starts_ta, all_lengths_ta
+        # updates class_id + 1 for while loop counter increment
+        # all these variables are used as loop_vars in tf.while_loop
+
+    # Execute main loop
+    _, write_idx, all_starts_ta, all_lengths_ta = tf.while_loop(
+        loop_condition, loop_body,
+        [class_id, write_idx, all_starts_ta, all_lengths_ta]
+    )
+
+    def truncate_rle(all_starts_concat, all_lengths_concat):
+        """remove the shortest runs"""
+
+        # Sort by lengths
+        lengths_sort_idx = tf.argsort(all_lengths_concat, direction='DESCENDING')
+        valid_idx = lengths_sort_idx[:max_runs]
+        all_starts_concat = tf.gather(all_starts_concat, valid_idx)
+        all_lengths_concat = tf.gather(all_lengths_concat, valid_idx)
+        return all_starts_concat, all_lengths_concat
+
+    # Get final results
+    def get_results():
+        all_starts_concat = all_starts_ta.stack()
+        all_lengths_concat = all_lengths_ta.stack()
+        # n_runs = tf.size(all_starts_concat)
+        n_runs = tf.shape(all_starts_concat)[0]
+
+        # tf.cond(n_runs > max_runs > 0, get_results, empty_results)
+        if n_runs > max_runs > 0:
+            all_starts_concat, all_lengths_concat = truncate_rle(
+                all_starts_concat, all_lengths_concat)
+
+        # Sort by start positions
+        sort_idx = tf.argsort(all_starts_concat)
+
+        if randomize_runs:
+            sort_idx = tf.random.shuffle(sort_idx)
+
+        starts_sorted = tf.gather(all_starts_concat, sort_idx)
+        lengths_sorted = tf.gather(all_lengths_concat, sort_idx)
+        return starts_sorted, lengths_sorted
+
+    def empty_results():
+        return tf.constant([], dtype=tf.int64), tf.constant([], dtype=tf.int64)
+
+    return tf.cond(write_idx > 0, get_results, empty_results)
+
+
+@tf.function
+def split_runs_graph_mode(starts, lengths, max_length):
+    """
+    Graph-mode compatible version of split_runs.
+    Uses tf.TensorArray instead of Python lists for proper graph execution.
+    """
+    # Initialize TensorArrays for collecting results
+    new_starts_ta = tf.TensorArray(dtype=starts.dtype, size=0, dynamic_size=True)
+    new_lengths_ta = tf.TensorArray(dtype=lengths.dtype, size=0, dynamic_size=True)
+    write_idx = tf.constant(0, dtype=tf.int32)
+
+    # Process each run using tf.while_loop
+    run_idx = tf.constant(0, dtype=tf.int32)
+    n_runs = tf.shape(starts)[0]
+
+    def loop_condition(run_idx, write_idx, new_starts_ta, new_lengths_ta):
+        return run_idx < n_runs
+
+    def loop_body(run_idx, write_idx, new_starts_ta, new_lengths_ta):
+        start = starts[run_idx]
+        length = lengths[run_idx]
+
+        def no_split():
+            # No splitting needed
+            new_starts_ta_updated = new_starts_ta.write(write_idx, start)
+            new_lengths_ta_updated = new_lengths_ta.write(write_idx, length)
+            return write_idx + 1, new_starts_ta_updated, new_lengths_ta_updated
+
+        def split_run():
+            # Split this run into segments
+            remaining_length = length
+            current_start = start
+            current_write_idx = write_idx
+
+            def split_condition(remaining_length, current_start, current_write_idx, new_starts_ta, new_lengths_ta):
+                return remaining_length > 0
+
+            def split_body(remaining_length, current_start, current_write_idx, new_starts_ta, new_lengths_ta):
+                segment_length = tf.minimum(remaining_length, tf.cast(max_length, tf.int64))
+                new_starts_ta = new_starts_ta.write(current_write_idx, current_start)
+                new_lengths_ta = new_lengths_ta.write(current_write_idx, segment_length)
+
+                return (
+                    remaining_length - segment_length,
+                    current_start + segment_length,
+                    current_write_idx + 1,
+                    new_starts_ta,
+                    new_lengths_ta
+                )
+
+            _, _, final_write_idx, new_starts_ta_updated, new_lengths_ta_updated = tf.while_loop(
+                split_condition, split_body,
+                [remaining_length, current_start, current_write_idx, new_starts_ta, new_lengths_ta]
+            )
+
+            return final_write_idx, new_starts_ta_updated, new_lengths_ta_updated
+
+        write_idx, new_starts_ta, new_lengths_ta = tf.cond(
+            length <= tf.cast(max_length, tf.int64),
+            no_split,
+            split_run
+        )
+
+        return run_idx + 1, write_idx, new_starts_ta, new_lengths_ta
+
+    # Execute main loop
+    _, write_idx, new_starts_ta, new_lengths_ta = tf.while_loop(
+        loop_condition, loop_body,
+        [run_idx, write_idx, new_starts_ta, new_lengths_ta]
+    )
+
+    # Convert TensorArrays to tensors
+    def get_results():
+        return new_starts_ta.stack(), new_lengths_ta.stack()
+
+    def empty_results():
+        return tf.constant([], dtype=starts.dtype), tf.constant([], dtype=lengths.dtype)
+
+    return tf.cond(write_idx > 0, get_results, empty_results)
 
 
 def rle_to_mask(starts, lengths, class_ids, shape):
@@ -3338,15 +5062,26 @@ def get_class_info(category_info):
 
 def read_class_info(class_names_path):
     class_info = [k.strip() for k in open(class_names_path, 'r').readlines() if k.strip()]
-    class_names, class_cols = zip(*[[m.strip() for m in k.split('\t')] for k in class_info])
+    class_info_split = list(zip(*[[m.strip() for m in k.split('\t')] for k in class_info]))
+    if len(class_info_split) == 2:
+        class_names, class_cols = class_info_split
+        class_ids = tuple(range(len(class_names)))
+        if 'background' not in class_names:
+            class_ids = tuple(map(lambda x: x + 1, class_ids))
+    else:
+        class_names, class_cols, class_ids = class_info_split
+        class_ids = tuple(map(int, class_ids))
 
     if 'background' not in class_names:
-        assert 'black' not in class_cols, "black should only be used for background"
+        assert 'black' not in class_cols, "black class_col should only be used for background"
+        assert 0 not in class_ids, "0 class_id should only be used for background"
+
         class_names = ('background',) + class_names
         class_cols = ('black',) + class_cols
+        class_ids = (0,) + class_ids
 
-    class_id_to_col = {i: x for (i, x) in enumerate(class_cols)}
-    class_id_to_name = {i: x for (i, x) in enumerate(class_names)}
+    class_id_to_col = {i: x for (i, x) in zip(class_ids, class_cols, strict=True)}
+    class_id_to_name = {i: x for (i, x) in zip(class_ids, class_names, strict=True)}
 
     # n_classes = len(class_cols)
     # palette = []

@@ -238,6 +238,7 @@ class TaskObjectDetection(task_lib.Task):
             # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
             out_vis_dir=None,
             det_vid_writers=None,
+            img_ext='.jpg',
             csv_data=None,
             eval_step=None,
             training=False,
@@ -276,6 +277,7 @@ class TaskObjectDetection(task_lib.Task):
             out_vis_dir=out_vis_dir,
             vid_writers=det_vid_writers,
             csv_data=csv_data,
+            img_ext=img_ext,
             unpadded_size=unpadded_image_size,
             orig_size=orig_image_size,
         )

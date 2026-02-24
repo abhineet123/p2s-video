@@ -45,11 +45,11 @@ def update_task_config(cfg):
         task.image_size = image_size
 
         task.eval_transforms = transform_configs.get_semantic_segmentation_eval_transforms(
-            image_size, max_seq_len, rle_from_mask)
+            image_size, max_seq_len, rle_from_mask, cfg.debug)
 
         task.train_transforms = transform_configs.get_semantic_segmentation_train_transforms(
             cfg.dataset.transforms,
-            image_size, max_seq_len, rle_from_mask)
+            image_size, max_seq_len, rle_from_mask, cfg.debug)
 
 
 def get_config(config_str=None):
@@ -79,6 +79,11 @@ def get_config(config_str=None):
             top_p=0.4,
             temperature=1.0,
             weight=1.0,
+
+            # increase weight assigned to class tokens so it is equal to all the coord tokens combined
+            # since no. of coord tokens is n*4 times the number of class tokens, the latter can often be
+            # relatively ignored during training, thus leading to lots of misclassifications during inference
+            class_equal_weight=0,
         ),
     }
 
@@ -135,6 +140,7 @@ def get_config(config_str=None):
             learning_rate_scaling='none',
         ),
     )
+    config.debug = base_config.debug
     update_task_config(config)
 
     # Update model with architecture variant.

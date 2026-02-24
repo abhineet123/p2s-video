@@ -1,0 +1,15 @@
+{
+	"dist": 2,
+	"train": {
+		"save_suffix": ["dz",],
+	},
+	"tf_config": {
+	"cluster": {
+		"worker": [
+			"192.168.3.169:57698", 
+			"192.168.3.160:35476", 
+			]
+	},
+	"task": {"type": "worker", "index": -1}
+	}
+}

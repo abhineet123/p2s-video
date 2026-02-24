@@ -1,0 +1,6 @@
+{
+  "eval": {
+	remote_put: 'x99',
+	sleep_eval: %%0%%,
+	},
+}

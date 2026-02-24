@@ -1,7 +1,6 @@
 {
   "eval": {
-	info_file: 'dgPolWm53WNOJ8PEioAL',
-	remote: 'grs',
+	remote: 'mjmini',
 	proxy: 'e5g',
 	sleep_eval: %%0%%,
 	},

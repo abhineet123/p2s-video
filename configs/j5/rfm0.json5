@@ -1,0 +1,9 @@
+{
+  "dataset": {
+  	rle_from_mask: 0,
+	rle_from_json: 1,	
+	"%mode%": {
+		params_from_json: 1,
+	},
+  },
+}

@@ -1,0 +1,9 @@
+{
+  model: {
+	shared_xyl: 1,
+  },
+  train: {
+    save_suffix: ['sxyl',],
+  },
+
+}

@@ -35,15 +35,19 @@ def run(cfg, dataset, task, eval_steps, ckpt, strategy, model, checkpoint, tf):
         print_with_time(f'Performing inference at step {global_step.numpy():d}')
 
     ckpt_name = os.path.splitext(os.path.basename(ckpt))[0]
-    json_name = cfg.dataset.eval_filename_for_metrics
+    eval_name = cfg.dataset.eval_name
 
-    assert json_name, "eval_filename_for_metrics must be provided for evaluation"
-    json_name = os.path.basename(json_name).split(os.extsep)[0]
+    assert eval_name, "eval_name must be provided for evaluation"
 
-    out_dir = os.path.join(cfg.model_dir, f'{ckpt_name}-{json_name}')
+    if cfg.eval.db_prefix:
+        db_prefix = '-'.join(cfg.eval.db_prefix)
+        eval_name = f'{db_prefix}-{eval_name}'
+    # eval_name = os.path.basename(eval_name).split(os.extsep)[0]
+
+    out_dir = os.path.join(cfg.model_dir, f'{ckpt_name}-{eval_name}')
 
     os.makedirs(out_dir, exist_ok=True)
-    if is_seg:
+    if is_seg and not cfg.dataset.rle_from_mask:
         rle_lens = cfg.dataset.eval.rle_lens
         rle_lens_str = '\n'.join(rle_lens)
         rle_lens_path = os.path.join(out_dir, "rle_lens.txt")
@@ -74,12 +78,12 @@ def run(cfg, dataset, task, eval_steps, ckpt, strategy, model, checkpoint, tf):
     out_csv_dir = os.path.join(out_dir, csv_dir_name)
 
     if is_seg:
-        inference_dirs = [out_mask_dir,]
+        inference_dirs = [out_mask_dir, ]
         if cfg.dataset.instance_wise:
             inference_dirs.append(out_csv_dir)
             inference_dirs.append(out_instance_dir)
     else:
-        inference_dirs = [out_csv_dir,]
+        inference_dirs = [out_csv_dir, ]
 
     inference_flags = [linux_path(inference_dir, '__inference') for inference_dir in inference_dirs]
 
@@ -262,9 +266,11 @@ def run(cfg, dataset, task, eval_steps, ckpt, strategy, model, checkpoint, tf):
                 det_vid_writers=det_vid_writers,
                 seg_vid_writers=seg_vid_writers,
                 csv_data=seq_to_csv_rows,
+                img_ext=cfg.dataset.img_ext,
                 eval_step=cur_step,
                 summary_tag=eval_tag,
                 ret_results=False,
+                save_as_zip=cfg.eval.write_to_zip,
             )
 
             if seq_to_csv_rows is not None and (
