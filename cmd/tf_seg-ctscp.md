@@ -31,6 +31,7 @@
             - [cw       @ p-640/r-1280_640/train](#cw___p_640_r_1280_640_train_)
             - [cw-2d       @ p-640/r-1280_640/train](#cw_2d___p_640_r_1280_640_train_)
             - [lac       @ p-640/r-1280_640/train](#lac___p_640_r_1280_640_train_)
+            - [lac-2d       @ p-640/r-1280_640/train](#lac_2d___p_640_r_1280_640_train_)
             - [no_starts       @ p-640/r-1280_640/train](#no_starts___p_640_r_1280_640_train_)
             - [cw-no_starts       @ p-640/r-1280_640/train](#cw_no_starts___p_640_r_1280_640_train_)
     - [r-1024       @ train](#r_1024___trai_n_)
@@ -82,6 +83,7 @@ python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:r-1280_640:p-640:sub-8:
 <a id="lac___p_640_r_1280_640_val_"></a>
 #### lac       @ p-640/r-1280_640/val-->tf_seg-ctscp
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:r-1280_640:p-640:sub-8:lac:chk-0:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:r-1280_640:p-640:sub-5:lac:chk-0:json:vid-0
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:r-1280_640:p-640:sub-4:lac:chk-0:stats-2:vid-0
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:r-1280_640:p-640:sub-2:lac:chk-0:stats-2:vid-0
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:r-1280_640:p-640:sub-1:lac:chk-0:stats-2:vid-0
@@ -169,8 +171,13 @@ python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-
 <a id="lac___p_640_r_1280_640_train_"></a>
 #### lac       @ p-640/r-1280_640/train-->tf_seg-ctscp
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-8:lac:chk-0:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-5:lac:chk-0:vid-0:json
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-4:lac:chk-0:stats-2:vid-0
-python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-2:lac:chk-0:stats-2:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-2:lac:chk-0:vid-0
+<a id="lac_2d___p_640_r_1280_640_train_"></a>
+#### lac-2d       @ p-640/r-1280_640/train-->tf_seg-ctscp
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-2:lac:2d:chk-0:vid-0
+
 <a id="no_starts___p_640_r_1280_640_train_"></a>
 #### no_starts       @ p-640/r-1280_640/train-->tf_seg-ctscp
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-8:no_starts:chk-1:stats-1:vid-0

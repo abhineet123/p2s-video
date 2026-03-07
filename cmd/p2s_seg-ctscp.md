@@ -12,6 +12,11 @@
         - [on-train       @ r-640-sub-8-lac-fbb/train](#on_train___r_640_sub_8_lac_fbb_trai_n_)
     - [r-1280_640-p-640-sub-8-lac-fbb       @ train](#r_1280_640_p_640_sub_8_lac_fbb___trai_n_)
         - [on-val-put       @ r-1280_640-p-640-sub-8-lac-fbb/train](#on_val_put___r_1280_640_p_640_sub_8_lac_fbb_train_)
+        - [on-val       @ r-1280_640-p-640-sub-8-lac-fbb/train](#on_val___r_1280_640_p_640_sub_8_lac_fbb_train_)
+    - [r-1280_640-p-640-sub-5-lac-fbb       @ train](#r_1280_640_p_640_sub_5_lac_fbb___trai_n_)
+        - [on-val-put       @ r-1280_640-p-640-sub-5-lac-fbb/train](#on_val_put___r_1280_640_p_640_sub_5_lac_fbb_train_)
+    - [r-1280_640-p-640-sub-2-lac-fbb       @ train](#r_1280_640_p_640_sub_2_lac_fbb___trai_n_)
+    - [r-1280_640-p-640-sub-2-lac-2d-fbb       @ train](#r_1280_640_p_640_sub_2_lac_2d_fbb___trai_n_)
 - [train-rfm](#train_rfm_)
     - [p-1024-sub-8-lac-fbb       @ train-rfm](#p_1024_sub_8_lac_fbb___train_rf_m_)
         - [on-train       @ p-1024-sub-8-lac-fbb/train-rfm](#on_train___p_1024_sub_8_lac_fbb_train_rfm_)
@@ -104,7 +109,36 @@ CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=_train_,
 ### on-val-put       @ r-1280_640-p-640-sub-8-lac-fbb/train-->p2s_seg-ctscp
 `hp8470p_put`
 CUDA_VISIBLE_DEVICES= python3 run.py --cfg=configs/config_seg.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-sub_8-lac-batch_80-seq2k-voc8192-fbb-gdez,_eval_,ctscp-val,batch-2,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-8,no_vid,logits,hp8470p_put-4
+`x99_put`
+CUDA_VISIBLE_DEVICES= python3 run.py --cfg=configs/config_seg.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-sub_8-lac-batch_80-seq2k-voc8192-fbb-gdez,_eval_,ctscp-val,batch-2,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-8,no_vid,logits,x99_put-4
+<a id="on_val___r_1280_640_p_640_sub_8_lac_fbb_train_"></a>
+### on-val       @ r-1280_640-p-640-sub-8-lac-fbb/train-->p2s_seg-ctscp
+CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-sub_8-lac-batch_80-seq2k-voc8192-fbb-gdez,_eval_,ctscp-val,batch-16,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-8,no_vid,logits,grs
+`local`
+CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-sub_8-lac-batch_80-seq2k-voc8192-fbb-gdez,_eval_,ctscp-val,batch-16,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-8,no_vid,logits
 
+<a id="r_1280_640_p_640_sub_5_lac_fbb___trai_n_"></a>
+## r-1280_640-p-640-sub-5-lac-fbb       @ train-->p2s_seg-ctscp
+python3 run.py --cfg=configs/config_seg.py  --j5=_train_,resnet-640,ctscp-train,seg-r-1280_640:p-640:sub-5,lac,batch-40,dbg-0,dyn-1,dist-2,pt-1,seq3k,voc19b,fbb,gdez
+```
+watch tail -1 log/seg/resnet_640_ctscp-train-resize_1280x640-640_640-640_640-sub_5-lac-batch_40-seq3k-voc19b-fbb-gdez/progress_log.txt
+```
+`single gpu`
+CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=_train_,resnet-640,ctscp-train,seg-r-1280_640:p-640:sub-5,lac,batch-5,dbg-0,dyn-1,dist-0,pt-1,seq3k,voc19b,fbb
+<a id="on_val_put___r_1280_640_p_640_sub_5_lac_fbb_train_"></a>
+### on-val-put       @ r-1280_640-p-640-sub-5-lac-fbb/train-->p2s_seg-ctscp
+`hp8470p_put`
+CUDA_VISIBLE_DEVICES= python3 run.py --cfg=configs/config_seg.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-sub_5-lac-batch_40-seq3k-voc19b-fbb-gdez,_eval_,ctscp-val,batch-2,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-5,no_vid,logits,hp8470p_put-4
+
+
+<a id="r_1280_640_p_640_sub_2_lac_fbb___trai_n_"></a>
+## r-1280_640-p-640-sub-2-lac-fbb       @ train-->p2s_seg-ctscp
+`gives OOM`
+CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=_train_,resnet-640,ctscp-train,seg-r-1280_640:p-640:sub-2,lac,batch-1,dbg-0,dyn-1,dist-0,pt-1,seq8k,voc109k,fbb
+<a id="r_1280_640_p_640_sub_2_lac_2d_fbb___trai_n_"></a>
+## r-1280_640-p-640-sub-2-lac-2d-fbb       @ train-->p2s_seg-ctscp
+`gives OOM`
+CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=_train_,resnet-640,ctscp-train,seg-r-1280_640:p-640:sub-2,lac,2d,batch-1,dbg-0,dyn-1,dist-0,pt-1,seq12k,voc7k,fbb
 <a id="train_rfm_"></a>
 # train-rfm
 <a id="p_1024_sub_8_lac_fbb___train_rf_m_"></a>

@@ -1,0 +1,6 @@
+{
+  "eval": {
+	remote: '8470p',
+	sleep_eval: %%0%%,
+	},
+}
