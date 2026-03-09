@@ -1,24 +1,21 @@
 <!-- No Heading Fix -->
 
-<!-- MarkdownTOC -->
-
-- [Introduction](#introductio_n_)
-- [Setup](#setup_)
-  - [Code](#cod_e_)
-  - [Install](#install_)
-    - [virtual environment](#virtual_environmen_t_)
-    - [packages](#package_s_)
-- [Run](#run_)
-
-<!-- /MarkdownTOC -->
-
-<a id="introductio_n_"></a>
-# Introduction
 This is the official implementation of our extension of the [Pix2Seq language modeling framework](https://github.com/google-research/pix2seq) for autoregressive video object detection and panoptic segmentation in images and videos.
 
 - [phd dissertation](docs/p2s_vid_phd_thesis.pdf)
 - [video detection paper](https://ieeexplore.ieee.org/document/11115031) [[pdf]](docs/p2s_vid_det_paper.pdf)
 - [semantic segmentation paper](https://arxiv.org/abs/2602.21627) [[pdf]](docs/p2s_vid_sem_seg_paper.pdf)
+
+# Table of Contents
+
+<!-- MarkdownTOC -->
+
+- [Setup](#setup_)
+  - [Code](#cod_e_)
+  - [Install](#install_)
+- [Run](#run_)
+
+<!-- /MarkdownTOC -->
 
 <a id="setup_"></a>
 # Setup
@@ -39,9 +36,8 @@ Each of these repos was created for a different project but they all use a lot o
 We have used python 3.10 on Ubuntu 22.04 for most of our testing but it should also work on any python version > 3.8 and any non-ancient linux distro.    
 
 Windows support is limited to CPU-only training and inference since pix2seq needs tensorflow 2.15 and Google stopped releasing GPU-versions of tensorflow pip package after 2.10.
-Of course, you can always compile tensorflow from source to install the required version.
-<a id="virtual_environmen_t_"></a>
-### virtual environment
+Of course, you can always compile tensorflow from source to install the required version.    
+
 virtualenv:
 ```
 python3.10 -m pip install virtualenv virtualenvwrapper
@@ -52,11 +48,11 @@ or conda:
 conda create -n pix2seq python=3.10
 conda activate pix2seq
 ```
-<a id="package_s_"></a>
-### packages
+packages:
 ```
 python -m pip install -r requirements.txt
 ```
+
 More detailed setup instructions for other platforms along with bug fixes and GPU related stuff like CUDA are available in [cmd/p2s_setup.md](cmd/p2s_setup.md).
 It also contains lots of other setup-related commands we have used in the course of our experiments but which will likely be irrelevant to your use-case.
 
@@ -65,20 +61,31 @@ It also contains lots of other setup-related commands we have used in the course
 We use markdown files to keep track of all the experiments we have done.
 These files store the actual commands needed to run the scripts in various configurations and are organized hierarchically by task and dataset.
 Each file has a table of contents for ease of navigation.
-The `.md` files for each repo or submodule are in a folder named `cmd` within 
+The `.md` files for each repo or module are in a subfolder named `cmd` within the folder containing that module.
 
-This repo contains code for two parts of the pipeline - generating tfrecord files from a dataset amd running training and inference on these files.
-There are therefore two sets of corresponding `.md` files in the [`cmd`](cmd) folder, respectively suffixed with `tf` and `p2s`.
+This repo contains code for two parts of the pipeline:
+- generating tfrecord files from a dataset
+- running training and inference on these files
+
+Therefore, there are two sets of corresponding `.md` files in the [`cmd`](cmd) folder, respectively suffixed with `tf` and `p2s`.
 Both sets of files follow this naming scheme: `<prefix>_<task>-<dataset>.md`
 
 - `prefix` can be either  `tf` and `p2s`
-- task can be one of `vid`, `seg` or `vid_seg` respectively for video object detection, static segmentation, and video segmentation.
-    - this is empty for static object detection
-- `dataset` can be `ipsc`, `isl`, `imgn`, `acamp`, `617`, `coco`, or `ctscp` respectively for the [IPSC](https://huggingface.co/abhineet123/ipsc_prediction), [UA-DETRAC](https://www.kaggle.com/datasets/bratjay/ua-detrac-orig), [Imagenet Vid](https://image-net.org/challenges/LSVRC/2017/), [ACAD](https://huggingface.co/datasets/abhineet123/animal_detection), [ARIS](https://ieee-dataport.org/open-access/alberta-river-ice-segmentation-dataset), and [Cityscapes](https://www.cityscapes-dataset.com/) datasets
-    - each dataset is of course only paired with the tasks it supports
-    - `isl` files also contain some commands for related vehicle tracking datasets like [GRAM-RTM](https://gram.web.uah.es/data/datasets/rtm/index.html) anmd [IDOT](https://github.com/bitslab/IDOT_dataset) on which some early experiments were done.
+- `task` can be one of `vid`, `seg` or `vid_seg` respectively for video object detection, static segmentation, and video segmentation.
+    - `task` is empty for static object detection
+- `dataset` can be `ipsc`, `isl`, `imgn`, `acamp`, `617`, `coco`, or `ctscp` respectively for
+[IPSC](https://huggingface.co/abhineet123/ipsc_prediction),
+[UA-DETRAC](https://www.kaggle.com/datasets/bratjay/ua-detrac-orig),
+[Imagenet Vid](https://image-net.org/challenges/LSVRC/2017/),
+[ACAD](https://huggingface.co/datasets/abhineet123/animal_detection),
+[ARIS](https://ieee-dataport.org/open-access/alberta-river-ice-segmentation-dataset),
+[COCO](https://cocodataset.org/#home), and
+[Cityscapes](https://www.cityscapes-dataset.com/)
+datasets
+    - each dataset is only paired with a subset of the tasks that it supports
+    - `isl` files also contain commands for other vehicle tracking datasets like [GRAM-RTM](https://gram.web.uah.es/data/datasets/rtm/index.html) anmd [IDOT](https://github.com/bitslab/IDOT_dataset) on which some early experiments were done
 
-For example [`p2s_vid-ipsc.md`](cmd/p2s_vid-ipsc.md) contains training and inference commands for performing video detection on IPSC dataset while  [`p2s_seg-ctscp.md`](cmd/p2s_seg-ctscp.md) contains commands for performing static segmentation on the Cityscapes dataset.
+For example, [`p2s_vid-ipsc.md`](cmd/p2s_vid-ipsc.md) contains training and inference commands for performing video detection on IPSC dataset while  [`p2s_seg-ctscp.md`](cmd/p2s_seg-ctscp.md) contains commands for performing static segmentation on the Cityscapes dataset.
 Similarly, [`tf_seg-617.md`](cmd/tf_seg-617.md) and [`tf_vid-isl.md`](cmd/tf_vid-isl.md) contain commands for generating tfrecords files for static segmentation on ARIS dataset and video object detection on UA-DETRAC dataset.
 
 
