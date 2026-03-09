@@ -78,7 +78,7 @@ Both sets of files follow this naming scheme: `<prefix>_<task>-<dataset>.md`
     - each dataset is of course only paired with the tasks it supports
     - `isl` files also contain some commands for related vehicle tracking datasets like [GRAM-RTM](https://gram.web.uah.es/data/datasets/rtm/index.html) anmd [IDOT](https://github.com/bitslab/IDOT_dataset) on which some early experiments were done.
 
-For example [`p2s_vid-ipsc.md`](cmd/p2s_vid-ipsc.md) contains training and inference commands for performing video detection on IPSC dataset while  [`p2s_seg-ctscp.md`](cmd/p2s_vid-ipsc.md) contains commands for performing static segmentation on the Cityscapes dataset.
+For example [`p2s_vid-ipsc.md`](cmd/p2s_vid-ipsc.md) contains training and inference commands for performing video detection on IPSC dataset while  [`p2s_seg-ctscp.md`](cmd/p2s_seg-ctscp.md) contains commands for performing static segmentation on the Cityscapes dataset.
 Similarly, [`tf_seg-617.md`](cmd/tf_seg-617.md) and [`tf_vid-isl.md`](cmd/tf_vid-isl.md) contain commands for generating tfrecords files for static segmentation on ARIS dataset and video object detection on UA-DETRAC dataset.
 
 

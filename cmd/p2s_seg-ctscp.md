@@ -25,17 +25,17 @@
     - [p-1024-sub-8-mhd-fbb       @ train-rfm](#p_1024_sub_8_mhd_fbb___train_rf_m_)
     - [r-1280_640       @ train-rfm](#r_1280_640___train_rf_m_)
         - [p-640-sub-8-mhd-fbb       @ r-1280_640/train-rfm](#p_640_sub_8_mhd_fbb___r_1280_640_train_rfm_)
-        - [on-val       @ r-1280_640/train-rfm](#on_val___r_1280_640_train_rfm_)
+            - [on-val       @ p-640-sub-8-mhd-fbb/r-1280_640/train-rfm](#on_val___p_640_sub_8_mhd_fbb_r_1280_640_train_rfm_)
         - [p-640-sub-8-mhd-1241-fbb       @ r-1280_640/train-rfm](#p_640_sub_8_mhd_1241_fbb___r_1280_640_train_rfm_)
-        - [on-val       @ r-1280_640/train-rfm](#on_val___r_1280_640_train_rfm__1)
+            - [on-val       @ p-640-sub-8-mhd-1241-fbb/r-1280_640/train-rfm](#on_val___p_640_sub_8_mhd_1241_fbb_r_1280_640_train_rf_m_)
         - [p-640-sub-8-mhd-1241-fbb-b64       @ r-1280_640/train-rfm](#p_640_sub_8_mhd_1241_fbb_b64___r_1280_640_train_rfm_)
-        - [on-val       @ r-1280_640/train-rfm](#on_val___r_1280_640_train_rfm__2)
+            - [on-val       @ p-640-sub-8-mhd-1241-fbb-b64/r-1280_640/train-rfm](#on_val___p_640_sub_8_mhd_1241_fbb_b64_r_1280_640_train_rf_m_)
         - [p-640-sub-8-mhd-1241-fbb-b54-zeg       @ r-1280_640/train-rfm](#p_640_sub_8_mhd_1241_fbb_b54_zeg___r_1280_640_train_rfm_)
-        - [on-val       @ r-1280_640/train-rfm](#on_val___r_1280_640_train_rfm__3)
+            - [on-val       @ p-640-sub-8-mhd-1241-fbb-b54-zeg/r-1280_640/train-rfm](#on_val___p_640_sub_8_mhd_1241_fbb_b54_zeg_r_1280_640_train_rf_m_)
         - [p-640-sub-8-mhd-1241-fbb-b16       @ r-1280_640/train-rfm](#p_640_sub_8_mhd_1241_fbb_b16___r_1280_640_train_rfm_)
         - [p-640-sub-8-mhd-1241-fbb-b9       @ r-1280_640/train-rfm](#p_640_sub_8_mhd_1241_fbb_b9___r_1280_640_train_rfm_)
         - [p-640-sub-8-mhd-fbb-no_aug       @ r-1280_640/train-rfm](#p_640_sub_8_mhd_fbb_no_aug___r_1280_640_train_rfm_)
-        - [on-val       @ r-1280_640/train-rfm](#on_val___r_1280_640_train_rfm__4)
+            - [on-val       @ p-640-sub-8-mhd-fbb-no_aug/r-1280_640/train-rfm](#on_val___p_640_sub_8_mhd_fbb_no_aug_r_1280_640_train_rf_m_)
         - [p-640-sub-4-mhd-fbb       @ r-1280_640/train-rfm](#p_640_sub_4_mhd_fbb___r_1280_640_train_rfm_)
 
 <!-- /MarkdownTOC -->
@@ -221,8 +221,8 @@ watch tail -1
 log/seg/resnet_640_ctscp-train-resize_1280x640-640_640-640_640-mhd-rfm-rot-flip-batch_9-seq1k-fbb
 /progress_log.txt
 ```
-<a id="on_val___r_1280_640_train_rfm_"></a>
-### on-val       @ r-1280_640/train-rfm-->p2s_seg-ctscp
+<a id="on_val___p_640_sub_8_mhd_fbb_r_1280_640_train_rfm_"></a>
+#### on-val       @ p-640-sub-8-mhd-fbb/r-1280_640/train-rfm-->p2s_seg-ctscp
 CUDA_VISIBLE_DEVICES= python3 run.py --cfg=configs/config_seg_mhd.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-mhd-rfm-rot-flip-batch_72-seq1k-fbb-gdez,_eval_,ctscp-val,batch-2,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-8,mhd,rfm,no_vid,logits,x99_put
 CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg_mhd.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-mhd-rfm-rot-flip-batch_72-seq1k-fbb-gdez,_eval_,ctscp-val,batch-32,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-8,mhd,rfm,no_vid,logits
 
@@ -240,8 +240,8 @@ watch tail -1 log/seg/resnet_640_ctscp-train-resize_1280x640-640_640-640_640-mhd
 CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg_mhd.py  --j5=_train_,resnet-640,ctscp-train,seg-r-1280_640:p-640:sub-8,mhd-1241,rfm,rot,flip,batch-9,dbg-0,dyn-1,dist-0,pt-1,seq1k,voc_xyl-86,voc_c-25,fbb
 `dbg`
 CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg_mhd.py  --j5=_train_,resnet-640,ctscp-train,seg-r-1280_640:p-640:sub-8,mhd-1241,rfm,rot,flip,batch-1,dbg-1,dyn-1,dist-0,pt-1,seq1k,voc_xyl-86,voc_c-25,fbb
-<a id="on_val___r_1280_640_train_rfm__1"></a>
-### on-val       @ r-1280_640/train-rfm-->p2s_seg-ctscp
+<a id="on_val___p_640_sub_8_mhd_1241_fbb_r_1280_640_train_rf_m_"></a>
+#### on-val       @ p-640-sub-8-mhd-1241-fbb/r-1280_640/train-rfm-->p2s_seg-ctscp
 CUDA_VISIBLE_DEVICES= python3 run.py --cfg=configs/config_seg_mhd.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-mhd_1241-rfm-rot-flip-batch_72-seq1k-fbb-gdez,_eval_,ctscp-val,batch-2,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-8,mhd,rfm,no_vid,logits,x99_put
 CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg_mhd.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-mhd_1241-rfm-rot-flip-batch_72-seq1k-fbb-gdez,_eval_,ctscp-val,batch-32,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-8,mhd,rfm,no_vid,logits
 
@@ -255,8 +255,8 @@ NCCL_DEBUG=WARN NCCL_SOCKET_IFNAME=enp13s0 python3 run.py --cfg=configs/config_s
 ```
 watch tail -1 log/seg/resnet_640_ctscp-train-resize_1280x640-640_640-640_640-mhd_1241-rfm-rot-flip-batch_64-seq1k-fbb-zedg/progress_log.txt                                     
 ```
-<a id="on_val___r_1280_640_train_rfm__2"></a>
-### on-val       @ r-1280_640/train-rfm-->p2s_seg-ctscp
+<a id="on_val___p_640_sub_8_mhd_1241_fbb_b64_r_1280_640_train_rf_m_"></a>
+#### on-val       @ p-640-sub-8-mhd-1241-fbb-b64/r-1280_640/train-rfm-->p2s_seg-ctscp
 CUDA_VISIBLE_DEVICES= python3 run.py --cfg=configs/config_seg_mhd.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-mhd_1241-rfm-rot-flip-batch_64-seq1k-fbb-zedg,_eval_,ctscp-val,batch-2,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-8,mhd,rfm,no_vid,logits,x99_put
 CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg_mhd.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-mhd_1241-rfm-rot-flip-batch_64-seq1k-fbb-zedg,_eval_,ctscp-val,batch-32,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-8,mhd,rfm,no_vid,logits
 
@@ -270,8 +270,8 @@ watch tail -1 log/seg/resnet_640_ctscp-train-resize_1280x640-640_640-640_640-mhd
 
 log/seg/resnet_640_ctscp-train-resize_1280x640-640_640-640_640-mhd_1241-rfm-rot-flip-batch_54-seq1k-fbb-zeg 
 ```
-<a id="on_val___r_1280_640_train_rfm__3"></a>
-### on-val       @ r-1280_640/train-rfm-->p2s_seg-ctscp
+<a id="on_val___p_640_sub_8_mhd_1241_fbb_b54_zeg_r_1280_640_train_rf_m_"></a>
+#### on-val       @ p-640-sub-8-mhd-1241-fbb-b54-zeg/r-1280_640/train-rfm-->p2s_seg-ctscp
 `d3`
 CUDA_VISIBLE_DEVICES=1 python3 run.py --cfg=configs/config_seg_mhd.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-mhd_1241-rfm-rot-flip-batch_54-seq1k-fbb-zeg,_eval_,ctscp-val,batch-32,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-8,mhd,rfm,no_vid,grs
 `x99_put`
@@ -295,8 +295,8 @@ CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg_mhd.py  --j5=_tra
 ```
 watch tail -1 log/seg/resnet_640_ctscp-train-resize_1280x640-640_640-640_640-mhd-rfm-batch_9-seq1k-fbb/progress_log.txt
 ```
-<a id="on_val___r_1280_640_train_rfm__4"></a>
-### on-val       @ r-1280_640/train-rfm-->p2s_seg-ctscp
+<a id="on_val___p_640_sub_8_mhd_fbb_no_aug_r_1280_640_train_rf_m_"></a>
+#### on-val       @ p-640-sub-8-mhd-fbb-no_aug/r-1280_640/train-rfm-->p2s_seg-ctscp
 CUDA_VISIBLE_DEVICES=1 python3 run.py --cfg=configs/config_seg_mhd.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-mhd-rfm-batch_9-seq1k-fbb/,_eval_,ctscp-val,batch-2,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-8,mhd,rfm,no_vid
 
 
