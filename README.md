@@ -1,242 +1,84 @@
 <!-- No Heading Fix -->
 
-# P2S-Video: Extension of Pix2Seq for Video Detection and Segmentation
-This is the official implementation of my extension of the Pix2Seq language modelling framework for video object detection and panoptic segmentation in images and videos by autoregression
-- [phd thesis](docs/p2s_vid_phd_thesis.pdf)
+<!-- MarkdownTOC -->
+
+- [Introduction](#introductio_n_)
+- [Setup](#setup_)
+  - [Code](#cod_e_)
+  - [Install](#install_)
+    - [virtual environment](#virtual_environmen_t_)
+    - [packages](#package_s_)
+- [Run](#run_)
+
+<!-- /MarkdownTOC -->
+
+<a id="introductio_n_"></a>
+# Introduction
+This is the official implementation of our extension of the [Pix2Seq language modeling framework](https://github.com/google-research/pix2seq) for autoregressive video object detection and panoptic segmentation in images and videos.
+
+- [phd dissertation](docs/p2s_vid_phd_thesis.pdf)
 - [video detection paper](https://ieeexplore.ieee.org/document/11115031) [[pdf]](docs/p2s_vid_det_paper.pdf)
 - [semantic segmentation paper](https://arxiv.org/abs/2602.21627) [[pdf]](docs/p2s_vid_sem_seg_paper.pdf)
 
-This is the official implementation of Pix2Seq in Tensorflow 2 with efficient TPUs/GPUs support.
-**The original Pix2Seq code aims to be a general framework that turns RGB pixels into semantically meaningful sequences**. We now extend it to be a generic codebase, with task-centric organization that supports different tasks as well as their combination, using generative modeling (**both autoregressive and diffusion models**, see below).
+<a id="setup_"></a>
+# Setup
+<a id="cod_e_"></a>
+## Code
+In addition to the code in this repo, you will need the code in two of our other repos to run all the steps in the dataset_generation-training–inference-evaluation pipeline:
 
-<div align="center">
-  <img width="95%" alt="Pix2Seq Illustration" src="pix2seq.gif">
-</div>
-<div align="center">
-  An illustration of Pix2Seq for object detection (from <a href="https://ai.googleblog.com/2022/04/pix2seq-new-language-interface-for.html">our Google AI blog post</a>).
-</div>
+- [river ice segmentation](https://github.com/abhineet123/river_ice_segmentation): This contains all the segmentation-specific parts of the data processing pipeline including creating and stitching patches, data augmentation and segmentation evaluation.This should be cloned to `~/617`:
+    - `git clone https://github.com/abhineet123/river_ice_segmentation ~/617`
 
-## Models
-<a href="https://colab.research.google.com/github/google-research/pix2seq/blob/master/colabs/pix2seq_inference_object_detection.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
+- [ipsc prediction](https://github.com/abhineet123/ipsc_prediction): This contains general utility functions that are used in the other two repos, along with the object detection evaluation pipeline. This should be cloned to `~/ipsc`:
+    - `git clone https://github.com/abhineet123/ipsc_prediction ~/ipsc`
 
-### Objects365_object_detection_pretrained_checkpoints       @ Models/P2S-Video:_Extension_of_Pix2Seq_for_Video_Detection_and_Segmentation-->README
+Each of these repos was created for a different project but they all use a lot of same data processing stuff so we have linked them together to avoid code duplication and fragmentation.
 
-Backbone       | Total params (M) | Image size | Google cloud storage location
--------------: | ---------------: | ---------: | -----------:
-ResNet-50      | 36.6             | 640x640    | [gs://pix2seq/obj365_pretrain/resnet_640x640_b256_s400k](https://console.cloud.google.com/storage/browser/pix2seq/obj365_pretrain/resnet_640x640_b256_s400k)
-ResNet-50 (C4) | 84.7             | 640x640    | [gs://pix2seq/obj365_pretrain/resnetc_640x640_b256_s400k](https://console.cloud.google.com/storage/browser/pix2seq/obj365_pretrain/resnetc_640x640_b256_s400k)
-ViT-B          | 115.2            | 640x640    | [gs://pix2seq/obj365_pretrain/vit_b_640x640_b256_s400k](https://console.cloud.google.com/storage/browser/pix2seq/obj365_pretrain/vit_b_640x640_b256_s400k)
-ViT-L          | 341.2            | 640x640    | [gs://pix2seq/obj365_pretrain/vit_l_640x640_b256_s400k](https://console.cloud.google.com/storage/browser/pix2seq/obj365_pretrain/vit_l_640x640_b256_s400k)
+<a id="install_"></a>
+## Install
+We have used python 3.10 on Ubuntu 22.04 for most of our testing but it should also work on any python version > 3.8 and any non-ancient linux distro.    
 
-
-### COCO_object_detection_fine-tuned_checkpoints
-
-Backbone       | Total params (M) | Image size | COCO AP   | Google cloud storage location
--------------: | ---------------: | ---------: | --------: | -----------:
-ResNet-50      | 36.6             | 640x640    | 39.1      | [gs://pix2seq/coco_det_finetune/resnet_640x640](https://console.cloud.google.com/storage/browser/pix2seq/coco_det_finetune/resnet_640x640)
-ResNet-50      | 36.6             | 1024x1024  | 41.7      | [gs://pix2seq/coco_det_finetune/resnet_1024x1024](https://console.cloud.google.com/storage/browser/pix2seq/coco_det_finetune/resnet_1024x1024)
-ResNet-50      | 36.6             | 1333x1333  | 42.6      | [gs://pix2seq/coco_det_finetune/resnet_1333x1333](https://console.cloud.google.com/storage/browser/pix2seq/coco_det_finetune/resnet_1333x1333)
-ResNet-50 (C4) | 84.7             | 640x640    | 44.7      | [gs://pix2seq/coco_det_finetune/resnetc_640x640](https://console.cloud.google.com/storage/browser/pix2seq/coco_det_finetune/resnetc_640x640)
-ResNet-50 (C4) | 84.7             | 1024x1024  | 46.9      | [gs://pix2seq/coco_det_finetune/resnetc_1024x1024](https://console.cloud.google.com/storage/browser/pix2seq/coco_det_finetune/resnetc_1024x1024)
-ResNet-50 (C4) | 84.7             | 1333x1333  | 47.3      | [gs://pix2seq/coco_det_finetune/resnetc_1333x1333](https://console.cloud.google.com/storage/browser/pix2seq/coco_det_finetune/resnetc_1333x1333)
-ViT-B          | 115.2            | 640x640    | 44.2      | [gs://pix2seq/coco_det_finetune/vit_b_640x640](https://console.cloud.google.com/storage/browser/pix2seq/coco_det_finetune/vit_b_640x640)
-ViT-B          | 115.2            | 1024x1024  | 46.5      | [gs://pix2seq/coco_det_finetune/vit_b_1024x1024](https://console.cloud.google.com/storage/browser/pix2seq/coco_det_finetune/vit_b_1024x1024)
-ViT-B          | 115.2            | 1333x1333  | 47.1      | [gs://pix2seq/coco_det_finetune/vit_b_1333x1333](https://console.cloud.google.com/storage/browser/pix2seq/coco_det_finetune/vit_b_1333x1333)
-ViT-L          | 341.2            | 640x640    | 47.6      | [gs://pix2seq/coco_det_finetune/vit_l_640x640](https://console.cloud.google.com/storage/browser/pix2seq/coco_det_finetune/vit_l_640x640)
-ViT-L          | 341.2            | 1024x1024  | 49.2      | [gs://pix2seq/coco_det_finetune/vit_l_1024x1024](https://console.cloud.google.com/storage/browser/pix2seq/coco_det_finetune/vit_l_1024x1024)
-ViT-L          | 341.2            | 1333x1333  | 50.0      | [gs://pix2seq/coco_det_finetune/vit_l_1333x1333](https://console.cloud.google.com/storage/browser/pix2seq/coco_det_finetune/vit_l_1333x1333)
-
-### Multitask_checkpoints 
-Jointly fine-tuned on coco object detection, instance segmentation, captioning and keypoint detection.
-
-Backbone       | Total params (M) | Image size | COCO AP   | Google cloud storage location
--------------: | ---------------: | ---------: | --------: | -----------:
-ViT-B          | 115.2            | 640x640    | 44.2      | [gs://pix2seq/multi_task/ckpt/vit_b_640x640](https://console.cloud.google.com/storage/browser/pix2seq/multi_task/ckpt/vit_b_640x640)
-ViT-B          | 115.2            | 1024x1024  | 46.5      | [gs://pix2seq/multi_task/ckpt/vit_b_1024x1024](https://console.cloud.google.com/storage/browser/pix2seq/multi_task/ckpt/vit_b_1024x1024)
-
-## Usage  
-
-### Colabs 
-
-See [colabs](colabs) for inference and fine-tuning demos. Give [it](https://colab.research.google.com/github/google-research/pix2seq/blob/master/colabs/pix2seq_inference_object_detection.ipynb) a try!
-
-
-### Basic_setup_before_running_the_code
-
-The following setup is required before running the code.
-
+Windows support is limited to CPU-only training and inference since pix2seq needs tensorflow 2.15 and Google stopped releasing GPU-versions of tensorflow pip package after 2.10.
+Of course, you can always compile tensorflow from source to install the required version.
+<a id="virtual_environmen_t_"></a>
+### virtual environment
+virtualenv:
 ```
-git clone https://github.com/google-research/pix2seq.git
-pip install -r requirements.txt
+python3.10 -m pip install virtualenv virtualenvwrapper
+mkvirtualenv -p python3.10  pix2seq
 ```
-
-Download COCO annotations from [gs://pix2seq/multi_task/data/coco/json](https://console.cloud.google.com/storage/browser/pix2seq/multi_task/data/coco/json) to `/tmp/coco_annotations` (dir can be updated in the configs).
-
+or conda:
 ```
-annotations_dir=/tmp/coco_annotations
-wget https://storage.googleapis.com/pix2seq/multi_task/data/coco/json/captions_train2017_eval_compatible.json $annotations_dir
-wget https://storage.googleapis.com/pix2seq/multi_task/data/coco/json/captions_val2017_eval_compatible.json $annotations_dir
-wget https://storage.googleapis.com/pix2seq/multi_task/data/coco/json/instances_train2017.json $annotations_dir
-wget https://storage.googleapis.com/pix2seq/multi_task/data/coco/json/instances_val2017.json $annotations_dir
-wget https://storage.googleapis.com/pix2seq/multi_task/data/coco/json/person_keypoints_train2017.json $annotations_dir
-wget https://storage.googleapis.com/pix2seq/multi_task/data/coco/json/person_keypoints_val2017.json $annotations_dir
+conda create -n pix2seq python=3.10
+conda activate pix2seq
 ```
-
-(Optional) If accessing the pretrained checkpoints in Cloud is slowing down or blocking the start of training/eval, you can download them manually with following command `gsutil cp -r gs://cloud_folder local_folder`, and update `pretrained_ckpt` in the config file accordingly.
-
-(Optional) If training fails at the start (due to NcclAllReduce error), try a different `cross_device_ops` for `tf.distribute.MirroredStrategy` in utils.py:build_strategy function.
-
-### Instructions_for_training_(fine-tuning)_of_object_detection_models.
-
-Below is the instruction for starting a training job, where we've set up a configuration mainly for fine-tuning the objects365 pretrained models.
-
-Step 1: check [config_det_finetune.py](configs/config_det_finetune.py) and update if necessary, such as `encoder_variant`, `image_size`.
-
-Step 2: run `python3 run.py --mode=train --model_dir=/tmp/model_dir --config=configs/config_det_finetune.py --config.train.batch_size=32 --config.train.epochs=20 --config.optimization.learning_rate=3e-5`.
-
-(Optional) Setup tensorboard for training curves with `tensorboard --logdir=/tmp/model_dir`. Note: eval on this drill fine-tuning run (with vit-b 640x640 and 20 epochs) should give ~43.5 AP. Exact configurations used to reproduce the COCO fine-tuning results can be found in gs://pix2seq/coco_det_finetune/...
-
-(Optional) Set `--run_eagerly=True` for interactive debugging (which will be slower).
-
-### Instructions_for_evaluation_of_object_detection_models.
-
-Below is the instruction for starting an evaluation job, which monitors the specified directory and perform (continuous) evaluation of the latest and un-evaluated checkpoints. It can be started in parallel to or after the training.
-
-Step 1: check [config_det_finetune.py](configs/config_det_finetune.py) and update if necessary, such as `encoder_variant`, `image_size`. Set `checkpoint_dir` if the checkpoints to evaluate are not in `model_dir` (e.g., for evaluating our provided fine-tuning checkpoints).
-
-Step 2: run `python3 run.py --mode=eval --model_dir=/tmp/model_dir --config=configs/config_det_finetune.py --config.dataset.coco_annotations_dir=/path/to/annotations --config.eval.batch_size=40`.
-
-(Optional) Setup tensorboard for eval curves and detection visualizations with `tensorboard --logdir=/tmp/model_dir`.
-
-### Instructions_for_evaluation_of_multi-task_models.
-In `configs/config_multi_task.py` uncomment the line with `checkpoint_dir=get_multi_task_checkpoint_dir(...)`.
-To evaluate for image size `1024x1024` update `image_size` in the config.
-
-#### Object_detection 
+<a id="package_s_"></a>
+### packages
 ```
-config=configs/config_multi_task.py:object_detection@coco/2017_object_detection,vit-b
-model_dir=/tmp/pix2seq_eval_det
-# Path to save the detected boxes for evaluating other tasks.
-boxes_json_path=$model_dir/boxes.json
-python3 run.py --config=$config --model_dir=$model_dir --mode=eval --config.task.eval_outputs_json_path=$boxes_json_path
+python -m pip install -r requirements.txt
 ```
+More detailed setup instructions for other platforms along with bug fixes and GPU related stuff like CUDA are available in [cmd/p2s_setup.md](cmd/p2s_setup.md).
+It also contains lots of other setup-related commands we have used in the course of our experiments but which will likely be irrelevant to your use-case.
 
-(Optional) In order to use the detected boxes generated in the previous step for eval of instance segmentation and keypoint detection, they need to be converted to tfrecords using the command below. Alternatively you can use the pre-processed tfrecords that we have provided.
+<a id="run_"></a>
+# Run
+We use markdown files to keep track of all the experiments we have done.
+These files store the actual commands needed to run the scripts in various configurations and are organized hierarchically by task and dataset.
+Each file has a table of contents for ease of navigation.
+The `.md` files for each repo or submodule are in a folder named `cmd` within 
 
-```
-box_tfrecords=/tmp/boxes
-python3 data/scripts/merge_coco_json_tfrecord.py --tfrecord_path=gs://pix2seq/multi_task/data/coco/tfrecord/val* --annotation_path=$boxes_json_path  --output_dir=$box_tfrecords
-```
+This repo contains code for two parts of the pipeline - generating tfrecord files from a dataset amd running training and inference on these files.
+There are therefore two sets of corresponding `.md` files in the [`cmd`](cmd) folder, respectively suffixed with `tf` and `p2s`.
+Both sets of files follow this naming scheme: `<prefix>_<task>-<dataset>.md`
 
-#### Instance_segmentation
-```
-config=configs/config_multi_task.py:instance_segmentation@coco/2017_instance_segmentation,vit-b
-val_file_pattern=gs://pix2seq/multi_task/data/coco/det_boxes/vit_b_640x640/*.tfrecord
-# val_file_pattern=$box_tfrecords/*.tfrecord
-# Number of masks to aggregate. Reduce this for faster but lower quality eval. 
-num_samples=8
-model_dir=/tmp/pix2seq_eval_ins
-python3 run.py --config=$config --model_dir=$model_dir --mode=eval --config.dataset.val_file_pattern=$val_file_pattern --config.task.ensemble_num_samples=$num_samples
-```
+- `prefix` can be either  `tf` and `p2s`
+- task can be one of `vid`, `seg` or `vid_seg` respectively for video object detection, static segmentation, and video segmentation.
+    - this is empty for static object detection
+- `dataset` can be `ipsc`, `isl`, `imgn`, `acamp`, `617`, `coco`, or `ctscp` respectively for the [IPSC](https://huggingface.co/abhineet123/ipsc_prediction), [UA-DETRAC](https://www.kaggle.com/datasets/bratjay/ua-detrac-orig), [Imagenet Vid](https://image-net.org/challenges/LSVRC/2017/), [ACAD](https://huggingface.co/datasets/abhineet123/animal_detection), [ARIS](https://ieee-dataport.org/open-access/alberta-river-ice-segmentation-dataset), and [Cityscapes](https://www.cityscapes-dataset.com/) datasets
+    - each dataset is of course only paired with the tasks it supports
+    - `isl` files also contain some commands for related vehicle tracking datasets like [GRAM-RTM](https://gram.web.uah.es/data/datasets/rtm/index.html) anmd [IDOT](https://github.com/bitslab/IDOT_dataset) on which some early experiments were done.
 
-#### Keypoint_detection
-```
-config="configs/config_multi_task.py:keypoint_detection@coco/2017_keypoint_detection,vit-b"
-val_file_pattern=gs://pix2seq/multi_task/data/coco/det_boxes/vit_b_640x640/*.tfrecord
-# val_file_pattern=$box_tfrecords/*.tfrecord
-model_dir=/tmp/pix2seq_eval_key
-python3 run.py --config=$config --model_dir=$model_dir --mode=eval --config.dataset.val_file_pattern=$val_file_pattern
-```
+For example [`p2s_vid-ipsc.md`](cmd/p2s_vid-ipsc.md) contains training and inference commands for performing video detection on IPSC dataset while  [`p2s_seg-ctscp.md`](cmd/p2s_vid-ipsc.md) contains commands for performing static segmentation on the Cityscapes dataset.
+Similarly, [`tf_seg-617.md`](cmd/tf_seg-617.md) and [`tf_vid-isl.md`](cmd/tf_vid-isl.md) contain commands for generating tfrecords files for static segmentation on ARIS dataset and video object detection on UA-DETRAC dataset.
 
-#### Captioning
-```
-config=configs/config_multi_task.py:captioning@coco/2017_captioning,vit-b
-model_dir=/tmp/pix2seq_eval_cap
-python3 run.py --config=$config --model_dir=$model_dir --mode=eval
-```
 
-For captioning, the generated captions are written to `$model_dir/coco_result_{step}_{uuid.uuid4()}.json`. Metrics can be computed using the official coco scripts.
-
-Note: You can run eval on a subset of images by setting `--config.eval.steps`.
-
-## Cite 
-
-[Pix2seq paper](https://arxiv.org/abs/2109.10852):
-
-```
-@article{chen2021pix2seq,
-  title={Pix2seq: A language modeling framework for object detection},
-  author={Chen, Ting and Saxena, Saurabh and Li, Lala and Fleet, David J and Hinton, Geoffrey},
-  journal={arXiv preprint arXiv:2109.10852},
-  year={2021}
-}
-```
-
-[Pix2seq multi-task paper](https://arxiv.org/abs/2206.07669):
-
-```
-@article{chen2022unified,
-  title={A Unified Sequence Interface for Vision Tasks},
-  author={Chen, Ting and Saxena, Saurabh and Li, Lala and Lin, Tsung-Yi and Fleet, David J. and Hinton, Geoffrey},
-  journal={arXiv preprint arXiv:2206.07669},
-  year={2022}
-}
-```
-
-[Pix2seq-D paper](https://arxiv.org/abs/2210.06366):
-
-```
-@article{chen2022unified,
-  title={A generalist framework for panoptic segmentation of images and videos},
-  author={Chen, Ting and Li, Lala and Saxena, Saurabh and Hinton, Geoffrey and Fleet, David J.},
-  journal={arXiv preprint arXiv:2210.06366},
-  year={2022}
-}
-```
-
-[Bit Diffusion paper](https://arxiv.org/abs/2208.04202):
-
-```
-@article{chen2022analog,
-  title={Analog bits: Generating discrete data using diffusion models with self-conditioning},
-  author={Chen, Ting and Zhang, Ruixiang and Hinton, Geoffrey},
-  journal={arXiv preprint arXiv:2208.04202},
-  year={2022}
-}
-```
-
-[RIN Diffusion paper](https://arxiv.org/abs/2212.11972):
-
-```
-@article{jabri2022scalable,
-  title={Scalable Adaptive Computation for Iterative Generation},
-  author={Jabri, Allan and Fleet, David J. and Chen, Ting},
-  journal={arXiv preprint arXiv:2212.11972},
-  year={2022}
-}
-```
-
-[Diffusion noise scheduling paper](https://arxiv.org/abs/2301.10972):
-
-```
-@article{chen2023on,
-  title={On the Importance of Noise Scheduling for Diffusion Models},
-  author={Chen, Ting},
-  journal={arXiv preprint arXiv:2301.10972},
-  year={2023}
-}
-```
-
-[FitTransformer (FIT) paper](https://arxiv.org/abs/2305.12689):
-
-```
-@article{chen2023fit,
-  title={FIT: Far-reaching Interleaved Transformers},
-  author={Chen, Ting and Li, Lala},
-  journal={arXiv preprint arXiv:2305.12689},
-  year={2023}
-}
-```
-
-## Disclaimer
-This is not an officially supported Google product.
