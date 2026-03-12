@@ -15,6 +15,8 @@ This is the official implementation of our extension of the [Pix2Seq language mo
     - [Install](#install_)
 - [Run](#run_)
 - [Models](#model_s_)
+    - [ARIS dataset](#aris_datase_t_)
+    - [IPSC dataset](#ipsc_datase_t_)
 
 <!-- /MarkdownTOC -->
 
@@ -22,12 +24,17 @@ This is the official implementation of our extension of the [Pix2Seq language mo
 # Setup
 <a id="cod_e_"></a>
 ## Code
-In addition to the code in this repo, you will need the code in two of our other repos to run all the steps in the dataset_generation-training–inference-evaluation pipeline:
+This repo should be cloned to `~/pix2seq`:    
+    - `git clone https://github.com/abhineet123/p2s-video ~/pix2seq`
 
-- [river ice segmentation](https://github.com/abhineet123/river_ice_segmentation): This contains all the segmentation-specific parts of the data processing pipeline including creating and stitching patches, data augmentation and segmentation evaluation.This should be cloned to `~/617`:
+In addition to this repo, code from two of our other repos is needed to run all the steps in the dataset generation - training – inference - evaluation pipeline:
+
+- [river ice segmentation](https://github.com/abhineet123/river_ice_segmentation): This contains all the segmentation-specific parts of the data processing pipeline including creating and stitching patches, data augmentation and segmentation evaluation.
+This should be cloned to `~/617`:
     - `git clone https://github.com/abhineet123/river_ice_segmentation ~/617`
 
-- [ipsc prediction](https://github.com/abhineet123/ipsc_prediction): This contains general utility functions that are used in the other two repos, along with the object detection evaluation pipeline. This should be cloned to `~/ipsc`:
+- [ipsc prediction](https://github.com/abhineet123/ipsc_prediction): This contains general utility functions that are used in the other two repos, along with the object detection evaluation pipeline.
+This should be cloned to `~/ipsc`:
     - `git clone https://github.com/abhineet123/ipsc_prediction ~/ipsc`
 
 Each of these repos was created for a different project but they all use a lot of same data processing stuff so we have linked them together to avoid code duplication and fragmentation.
@@ -54,8 +61,8 @@ packages:
 python -m pip install -r requirements.txt
 ```
 
-More detailed setup instructions for other platforms along with bug fixes and GPU related stuff like CUDA are available in [cmd/p2s_setup.md](cmd/p2s_setup.md).
-It also contains lots of other setup-related commands we have used in the course of our experiments but which will likely be irrelevant to your use-case.
+More detailed commands for other platforms along with bug-fixes and GPU related stuff (e.g. CUDA installation) are available in [cmd/p2s_setup.md](cmd/p2s_setup.md).
+This file also contains lots of other setup-related commands we have used in the course of our experiments but which will likely be irrelevant to your use-case.
 
 <a id="run_"></a>
 # Run
@@ -68,7 +75,8 @@ This repo contains code for two parts of the pipeline:
 - generating tfrecord files from a dataset
 - running training and inference on these files
 
-Therefore, there are two sets of corresponding `.md` files in the [`cmd`](cmd) folder, respectively suffixed with `tf` and `p2s`.
+Therefore, there are two sets of corresponding `.md` files in the [`cmd`](cmd) folder, respectively suffixed with `tf` and `p2s`.    
+
 Both sets of files follow this naming scheme: `<prefix>_<task>-<dataset>.md`
 
 - `prefix` can be either  `tf` and `p2s`
@@ -92,6 +100,15 @@ Similarly, [`tf_seg-617.md`](cmd/tf_seg-617.md) and [`tf_vid-isl.md`](cmd/tf_vid
 # Models
 The trained models reported in the papers are available in [this hugging face model repo](https://huggingface.co/abhineet123/p2s-video).
 Each model archive should be extracted in the root of this repository while maintaining the folder structure inside the archive.
+<a id="aris_datase_t_"></a>
+## ARIS dataset
+- [32 training images](https://huggingface.co/abhineet123/p2s-video/blob/main/ARIS/log_seg_resnet_1024_resize_1280-0_31-1024_1024-64_256-rot_15_345_16-flip-sub_8-lac-617-batch_4-seq3k.zip)
 
-
-
+<a id="ipsc_datase_t_"></a>
+## IPSC dataset
+- early stage training
+    - [static segmentation](https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/early_stage/log_seg_resnet_640_resize_640-16_53-640_640-640_640-rot_15_345_4-flip-sub_2-2d-lac-batch_8-seq3k.zip)
+    - [video segmentation](https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/early_stage/log_video_seg_resnet_640_resize_2560-16_53-640_640-640_640-length-8-stride-1-sub_8-tac-mc-batch_4-seq3k.zip)
+- late stage training
+    - [static segmentation](https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/late_stage/log_seg_resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb.zip)
+    - [video segmentation](https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/late_stage/log_video_seg_resnet_640_resize_2560-54_126-640_640-640_640-length-8-stride-1-sub_8-tac-mc-batch_8-voc15-seq3k-fbb.zip)
