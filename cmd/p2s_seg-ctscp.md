@@ -15,6 +15,7 @@
         - [on-val       @ r-1280_640-p-640-sub-8-lac-fbb/train](#on_val___r_1280_640_p_640_sub_8_lac_fbb_train_)
     - [r-1280_640-p-640-sub-5-lac-fbb       @ train](#r_1280_640_p_640_sub_5_lac_fbb___trai_n_)
         - [on-val-put       @ r-1280_640-p-640-sub-5-lac-fbb/train](#on_val_put___r_1280_640_p_640_sub_5_lac_fbb_train_)
+        - [on-val       @ r-1280_640-p-640-sub-5-lac-fbb/train](#on_val___r_1280_640_p_640_sub_5_lac_fbb_train_)
     - [r-1280_640-p-640-sub-2-lac-fbb       @ train](#r_1280_640_p_640_sub_2_lac_fbb___trai_n_)
     - [r-1280_640-p-640-sub-2-lac-2d-fbb       @ train](#r_1280_640_p_640_sub_2_lac_2d_fbb___trai_n_)
 - [train-rfm](#train_rfm_)
@@ -129,7 +130,9 @@ CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=_train_,
 ### on-val-put       @ r-1280_640-p-640-sub-5-lac-fbb/train-->p2s_seg-ctscp
 `hp8470p_put`
 CUDA_VISIBLE_DEVICES= python3 run.py --cfg=configs/config_seg.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-sub_5-lac-batch_40-seq3k-voc19b-fbb-gdez,_eval_,ctscp-val,batch-2,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-5,no_vid,logits,hp8470p_put-4
-
+<a id="on_val___r_1280_640_p_640_sub_5_lac_fbb_train_"></a>
+### on-val       @ r-1280_640-p-640-sub-5-lac-fbb/train-->p2s_seg-ctscp
+CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-sub_5-lac-batch_40-seq3k-voc19b-fbb-gdez,_eval_,ctscp-val,batch-16,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-5,no_vid,logits,8470p
 
 <a id="r_1280_640_p_640_sub_2_lac_fbb___trai_n_"></a>
 ## r-1280_640-p-640-sub-2-lac-fbb       @ train-->p2s_seg-ctscp

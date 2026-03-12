@@ -11,9 +11,10 @@ This is the official implementation of our extension of the [Pix2Seq language mo
 <!-- MarkdownTOC -->
 
 - [Setup](#setup_)
-  - [Code](#cod_e_)
-  - [Install](#install_)
+    - [Code](#cod_e_)
+    - [Install](#install_)
 - [Run](#run_)
+- [Models](#model_s_)
 
 <!-- /MarkdownTOC -->
 
@@ -86,5 +87,11 @@ datasets
 
 For example, [`p2s_vid-ipsc.md`](cmd/p2s_vid-ipsc.md) contains training and inference commands for performing video detection on IPSC dataset while  [`p2s_seg-ctscp.md`](cmd/p2s_seg-ctscp.md) contains commands for performing static segmentation on the Cityscapes dataset.
 Similarly, [`tf_seg-617.md`](cmd/tf_seg-617.md) and [`tf_vid-isl.md`](cmd/tf_vid-isl.md) contain commands for generating tfrecords files for static segmentation on ARIS dataset and video object detection on UA-DETRAC dataset.
+
+<a id="model_s_"></a>
+# Models
+The trained models reported in the papers are available in [this hugging face model repo](https://huggingface.co/abhineet123/p2s-video).
+Each model archive should be extracted in the root of this repository while maintaining the folder structure inside the archive.
+
 
 
