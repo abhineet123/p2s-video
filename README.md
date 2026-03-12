@@ -44,7 +44,7 @@ Each of these repos was created for a different project but they all use a lot o
 We have used python 3.10 on Ubuntu 22.04 for most of our testing but it should also work on any python version > 3.8 and any non-ancient linux distro.    
 
 Windows support is limited to CPU-only training and inference since pix2seq needs tensorflow 2.15 and Google stopped releasing GPU-versions of tensorflow pip package after 2.10.
-Of course, you can always compile tensorflow from source to install the required version.    
+GPU-support requires tensorflow 2.15 to be compiled from source.
 
 virtualenv:
 ```
