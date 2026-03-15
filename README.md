@@ -219,12 +219,16 @@ python3 run.py --cfg=configs/config_seg.py  --j5=train,resnet-640,seg-54_126:p-6
 ```
 This command is available in [`tf_seg-ipsc.md`](cmd/p2s_seg-ipsc.md) under [`aug-strd-lac-fbb @ r-2560-p-640-sub-8/54_126-->p2s_seg-ipsc`](cmd/p2s_seg-ipsc.md#aug-strd-lac-fbb--------r-2560-p-640-sub-854_126--p2s_seg-ipsc)
 
+This will save the checkpoints and tensorboard log files under `~/pix2seq/log/seg/resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb`.
+
 <a id="run_inferenc_e_"></a>
 ## Run inference
 Run the following command in `~/pix2seq` to perform inference on the latest trained checkpoint over the test set and using a single GPU with batch size 16:
 ```
 CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=m-resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb,_eval_,batch-16,save-vis-0,dbg-0,dyn-1,seg-0_15:p-640:r-2560:sub-8,lac
 ```
+This will save the predicted segmentation masks under `~/p2s/log/seg/resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb/ckpt-<step>-resize_2560-0_15-640_640-640_640-sub_8-lac/masks-batch_16`.
+
 <a id="live_inferenc_e_"></a>
 ### Live-inference
 A live-inference version of the above command is available in [`tf_seg-ipsc.md`](cmd/p2s_seg-ipsc.md) under [`on-0_15 @ aug-strd-lac-fbb/r-2560-p-640-sub-8/54_126-->p2s_seg-ipsc`](cmd/p2s_seg-ipsc.md#on-0_15--------aug-strd-lac-fbbr-2560-p-640-sub-854_126--p2s_seg-ipsc):
