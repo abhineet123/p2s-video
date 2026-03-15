@@ -42,11 +42,11 @@ This repo should be cloned to `~/pix2seq`:
 
 In addition to this repo, code from two of our other repos is needed to run all the steps in the dataset generation - training – inference - evaluation pipeline:
 
-- [river ice segmentation](https://github.com/abhineet123/river_ice_segmentation): This contains all the segmentation-specific parts of the data processing pipeline including creating and stitching patches, data augmentation and segmentation evaluation.
+- [river ice segmentation](https://github.com/abhineet123/river_ice_segmentation): This contains segmentation-specific parts of the data processing pipeline including creating and stitching patches, data augmentation and segmentation evaluation.
 This should be cloned to `~/617`:
     - `git clone https://github.com/abhineet123/river_ice_segmentation ~/617`
 
-- [ipsc prediction](https://github.com/abhineet123/ipsc_prediction): This contains general utility functions that are used in the other two repos, along with the object detection evaluation pipeline.
+- [ipsc prediction](https://github.com/abhineet123/ipsc_prediction): This contains object detection-specifc parts of the data processing pipeline, along with some general utility functions that are used in the other two repos.
 This should be cloned to `~/ipsc`:
     - `git clone https://github.com/abhineet123/ipsc_prediction ~/ipsc`
 
