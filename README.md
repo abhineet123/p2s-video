@@ -28,6 +28,8 @@ This is the official implementation of our extension of the [Pix2Seq language mo
     - [Evaluate segmentation performance](#evaluate_segmentation_performanc_e_)
         - [Generate summary plots](#generate_summary_plot_s_)
 - [Models](#model_s_)
+- [Video Object Detection Pipeline](#video_object_detection_pipeline_)
+    - [Generate YTVIS19-formatted JSON files](#generate_ytvis19_formatted_json_file_s_)
     - [ARIS dataset](#aris_datase_t_)
     - [IPSC dataset](#ipsc_datase_t_)
 
@@ -154,8 +156,10 @@ Assumptions:
 - We want to resize all images to _`I=2560`_, then extract sliding-window patches of size _`P=640`_ and finally subsample these by a factor of 8 to get masks of size _`S=80`_
 - We want to use LAC-encoded RLE sequences with 1D starts
 - We want to augment the training dataset with a single random rotation per image between 15 and 345 degrees and through overlapping patches generated with random strides between 160 and 320 pixels.
+- We want to use the 640x640 input size version of the ResNet50 backbone and keep the backbone weights frozen during training
+- We want to finetune a model with COCO-pretrained weights instead of training from scratch
 
-These assumptions correspond to the primary late-stage training configuration reported in the paper.
+These assumptions correspond to the primary late-stage training configuration reported in the [paper](docs/p2s_vid_sem_seg_paper.pdf).
 
 <a id="setup_datase_t_"></a>
 ## Setup dataset 
@@ -282,6 +286,25 @@ wget https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/late_stage/log_
 unzip log_seg_resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb.zip
 ```
 This will extract the checkpoints to `~/pix2seq/log/seg/resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb/`.
+
+<a id="video_object_detection_pipeline_"></a>
+# Video Object Detection Pipeline
+Following sections demonstrate the complete step-by-step pipeline for creating video object detection training and test sets from the UA-DETRAC dataset, generating tfrecord files from these, training a model, running inference on the trained model, and evaluating the inference outputs against the ground truth.
+
+Assumptions:
+- We want to train on the standard UA-DETRAC training set containing the first 60 sequences and test it on the standard test dataset containing the remaining 40 sequences
+- We want train on video subsequences made up of _`N=2`_ consecutive frames- 
+- We want to use late-fusion video model with ResNet50 backbone 
+- We want to use the 640x640 input size version of the ResNet50 backbone and keep the backbone weights frozen during training
+- We want to finetune a model with COCO-pretrained weights instead opf training from scratch
+
+These assumptions correspond to the primary UA-DETRAC video detection model reported in the [paper](docs/p2s_vid_det_paper.pdf).
+
+<a id="generate_ytvis19_formatted_json_file_s_"></a>
+## Generate YTVIS19-formatted JSON files
+
+
+
 
 <a id="aris_datase_t_"></a>
 ## ARIS dataset

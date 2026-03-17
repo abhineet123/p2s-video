@@ -2,8 +2,11 @@ icons/.DS_Store
 resources.py
 
 .git/
+.gitp/
 .gitb/
+.git*/
 
+venvPix2Seq/
 venv
 venv/
 checkpoint
