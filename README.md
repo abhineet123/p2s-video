@@ -18,7 +18,7 @@ This is the official implementation of our extension of the [Pix2Seq language mo
         - [HTML caveat](#html_caveat_)
     - [Configs](#configs_)
 - [Semantic Segmentation Pipeline](#semantic_segmentation_pipeline_)
-    - [Setup dataset](#setup_datase_t_)
+    - [Setup dataset and softlinks](#setup_dataset_and_softlink_s_)
     - [Setup pretrained weights](#setup_pretrained_weight_s_)
     - [Generate sliding-window patches](#generate_sliding_window_patche_s_)
     - [Create tfrecord files](#create_tfrecord_file_s_)
@@ -28,7 +28,13 @@ This is the official implementation of our extension of the [Pix2Seq language mo
     - [Evaluate segmentation performance](#evaluate_segmentation_performanc_e_)
         - [Generate summary plots](#generate_summary_plot_s_)
 - [Video Object Detection Pipeline](#video_object_detection_pipeline_)
-    - [Generate YTVIS19-formatted JSON files](#generate_ytvis19_formatted_json_file_s_)
+    - [Setup dataset and softlinks](#setup_dataset_and_softlink_s__1)
+    - [Setup pretrained weights](#setup_pretrained_weight_s__1)
+    - [Generate JSON files](#generate_json_file_s_)
+        - [sampling](#samplin_g_)
+        - [static detection](#static_detectio_n_)
+    - [Create tfrecord files](#create_tfrecord_file_s__1)
+        - [sampling](#samplin_g__1)
 - [Models](#model_s_)
     - [ARIS dataset](#aris_datase_t_)
     - [IPSC dataset](#ipsc_datase_t_)
@@ -161,14 +167,22 @@ Assumptions:
 
 These assumptions correspond to the primary late-stage training configuration reported in the [paper](docs/p2s_vid_sem_seg_paper.pdf).
 
-<a id="setup_datase_t_"></a>
-## Setup dataset 
+<a id="setup_dataset_and_softlink_s_"></a>
+## Setup dataset and softlinks
 Download the [IPSC ROI images and labels](https://huggingface.co/abhineet123/ipsc_prediction/blob/main/ipsc_data/roi_images_and_labels.zip) archive and extract it in `/data` while  maintaining the directory structure inside the archive so that the ROI sequences end up in `/data/ipsc/well3/all_frames_roi/`.
 
 Create a softlink to `/data` as `~/pix2seq/datasets`:
 ```
 cd ~/pix2seq
 ln -s /data datasets
+```
+
+Create `~/pix2seq/log` if needed and a softlink to it as `~/617/log/p2s`:
+```
+mkdir ~/pix2seq/log
+cd ~/617
+mkdir log && cd log
+ln -s ~/pix2seq/log p2s
 ```
 
 <a id="setup_pretrained_weight_s_"></a>
@@ -279,15 +293,110 @@ Following sections demonstrate the complete step-by-step pipeline for creating v
 
 Assumptions:
 - We want to train on the standard UA-DETRAC training set containing the first 60 sequences and test it on the standard test dataset containing the remaining 40 sequences
-- We want train on video subsequences made up of _`N=2`_ consecutive frames- 
-- We want to use late-fusion video model with ResNet50 backbone 
+- We want train on video subsequences made up of _`N=2`_ consecutive frames
 - We want to use the 640x640 input size version of the ResNet50 backbone and keep the backbone weights frozen during training
+- We want to use the late-fusion video architecture 
 - We want to finetune a model with COCO-pretrained weights instead opf training from scratch
 
 These assumptions correspond to the primary UA-DETRAC video detection model reported in the [paper](docs/p2s_vid_det_paper.pdf).
 
-<a id="generate_ytvis19_formatted_json_file_s_"></a>
-## Generate YTVIS19-formatted JSON files
+<a id="setup_dataset_and_softlink_s__1"></a>
+## Setup dataset and softlinks
+Download our pre-formatted version of the [UA-DETRAC dataset](https://huggingface.co/datasets/abhineet123/ua_detrac) training and test sets and extract the archives into `/data/DETRAC/Images`:
+
+```
+mkdir /data/DETRAC/Images && cd /data/DETRAC/Images
+
+wget https://huggingface.co/datasets/abhineet123/ua_detrac/blob/main/ua_detrac_training_set.zip
+unzip ua_detrac_training_set.zip
+
+wget https://huggingface.co/datasets/abhineet123/ua_detrac/blob/main/ua_detrac_test_set.zip
+unzip ua_detrac_test_set.zip
+```
+
+Create a softlink to `/data` as `~/pix2seq/datasets`:
+```
+cd ~/pix2seq
+ln -s /data datasets
+```
+
+Create `~/pix2seq/log` if needed and softlink to it as `~/ipsc/ipsc_data_processing/log/p2s`:
+```
+mkdir ~/pix2seq/log
+cd ~/ipsc/ipsc_data_processing
+mkdir log && cd log
+ln -s ~/pix2seq/log p2s
+```
+
+<a id="setup_pretrained_weight_s__1"></a>
+## Setup pretrained weights
+Follow the instructions in the [semantic segmentation pipeline](#setup_pretrained_weight_s_).
+
+<a id="generate_json_file_s_"></a>
+## Generate JSON files
+Run this command in `~/ipsc/ipsc_data_processing` to generate JSON files for training and test sets in the [Youtube VIS 2019](https://youtube-vos.org/dataset/vis/) format:
+```
+python xml_to_ytvis.py cfg=detrac:0_59:proc-1:len-2:strd-1:gap-1:ign
+
+python xml_to_ytvis.py cfg=detrac:60_99:proc-1:len-2:strd-1:gap-1:ign
+```
+These commands are available in
+[`xml_to_ytvis.md`](https://github.com/abhineet123/ipsc_prediction/blob/master/ipsc_data_processing/cmd/xml_to_ytvis.md)
+under
+[`len-2 @ 0_59/detrac-->xml_to_ytvis`](https://github.com/abhineet123/ipsc_prediction/blob/master/ipsc_data_processing/cmd/xml_to_ytvis.md#len-2--------0_59detrac--xml_to_ytvis)
+and
+[`### len-2 @ 60_99/detrac-->xml_to_ytvis`](https://github.com/abhineet123/ipsc_prediction/blob/master/ipsc_data_processing/cmd/xml_to_ytvis.md#len-2--------60_99detrac--xml_to_ytvis).
+
+<a id="samplin_g_"></a>
+### sampling
+The test set is far too large for [live inference](#live_inferenc_e_) so we also provide support for sampling small subsets for this purpose.
+In our experience, the performance on randomly sampled subsets closely mirrors the performance on the full set.
+
+For example, the following command will sample 40 random subsequences (or 80 frames) from each sequence, thereby reducing the test set size to only 1.6K subsequences:
+```
+python data/scripts/create_video_tfrecord.py cfg=detrac:60_99:len-2:80_per_seq_random_len_2:strd-2:asi-0
+```
+Note that this command uses a stride of 2 instead of 1 in the earlier commands so as to generate non-overlapping subsequences.
+Using overlapping subsequences can provide redundancy in the detection outputs which can improve the performance somewhat but it is not necessary for live inference.
+
+This command requires that the [sample lists](https://huggingface.co/datasets/abhineet123/ua_detrac/blob/main/detrac_80_per_seq_random_len_2.zip) be downloaded and extracted to `/data/DETRAC`.
+
+```
+cd /data/DETRAC
+wget https://huggingface.co/datasets/abhineet123/ua_detrac/blob/main/detrac_80_per_seq_random_len_2.zip
+unzip detrac_80_per_seq_random_len_2.zip
+
+```
+
+The script that generates such sample lists is available in our [animal detection repo](https://github.com/abhineet123/animal_detection/blob/master/tf_api/csv_to_record.py) along with the [commands for generating these samples](https://github.com/abhineet123/animal_detection/blob/master/tf_api/cmd/csv_to_record.md#detrac--------sampling_based--csv_to_record).
+
+<a id="static_detectio_n_"></a>
+### static detection
+JSON files for static object detection need to be in the [COCO format](https://cocodataset.org/#format-data) and can be generated using [xml_to_coco.py](https://github.com/abhineet123/ipsc_prediction/blob/master/ipsc_data_processing/xml_to_coco.py).
+The corresponding commands are available in [xml_to_coco.md](https://github.com/abhineet123/ipsc_prediction/blob/master/ipsc_data_processing/cmd/xml_to_coco.md#detrac)
+
+<a id="create_tfrecord_file_s__1"></a>
+## Create tfrecord files
+Run the following commands in `~/pin2seq` to generate tfrecord files from the subpatch datasets:
+```
+python data/scripts/create_video_tfrecord.py cfg=detrac:0_59:len-2:strd-1:asi-1
+
+python data/scripts/create_video_tfrecord.py cfg=detrac:60_99:len-2:strd-1:asi-1
+```
+These commands are available in
+[`tf_vid-isl`](cmd/tf_vid-isl.md)
+under
+[`len-2 @ 0_59/detrac-->tf_vid-isl`](cmd/tf_vid-isl.md#len-2--------0_59detrac--tf_vid-isl)
+and 
+[`len-2 @ 60_99/detrac-->tf_vid-isl`](cmd/tf_vid-isl.md#len-2--------60_99detrac--tf_vid-isl) respectively
+
+<a id="samplin_g__1"></a>
+### sampling
+Run the following command to generate tfrecord files for the previously generated subset:
+```
+python data/scripts/create_video_tfrecord.py cfg=detrac:60_99:len-2:80_per_seq_random_len_2:strd-2:asi-0
+```
+
 
 <a id="model_s_"></a>
 # Models
