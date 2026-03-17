@@ -27,9 +27,9 @@ This is the official implementation of our extension of the [Pix2Seq language mo
         - [Live-inference](#live_inferenc_e_)
     - [Evaluate segmentation performance](#evaluate_segmentation_performanc_e_)
         - [Generate summary plots](#generate_summary_plot_s_)
-- [Models](#model_s_)
 - [Video Object Detection Pipeline](#video_object_detection_pipeline_)
     - [Generate YTVIS19-formatted JSON files](#generate_ytvis19_formatted_json_file_s_)
+- [Models](#model_s_)
     - [ARIS dataset](#aris_datase_t_)
     - [IPSC dataset](#ipsc_datase_t_)
 
@@ -273,20 +273,6 @@ Example Excel files are available here:
 - [means](https://huggingface.co/abhineet123/p2s-video/blob/main/evaluation/%23means/ipsc-54_126-r-2560-p-640-sub-8-aug-strd-lac-0_15-fbb.xlsx)
 - [medians](https://huggingface.co/abhineet123/p2s-video/blob/main/evaluation/%23medians/ipsc-54_126-r-2560-p-640-sub-8-aug-strd-lac-0_15-fbb.xlsx)
 
-<a id="model_s_"></a>
-# Models
-The trained models reported in the papers are available in [this hugging face model repo](https://huggingface.co/abhineet123/p2s-video).
-
-Each model archive should be extracted in the `~/pix2seq` while maintaining the folder structure inside the archive.
-
-For example:
-```
-cd ~/pix2seq
-wget https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/late_stage/log_seg_resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb.zip
-unzip log_seg_resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb.zip
-```
-This will extract the checkpoints to `~/pix2seq/log/seg/resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb/`.
-
 <a id="video_object_detection_pipeline_"></a>
 # Video Object Detection Pipeline
 Following sections demonstrate the complete step-by-step pipeline for creating video object detection training and test sets from the UA-DETRAC dataset, generating tfrecord files from these, training a model, running inference on the trained model, and evaluating the inference outputs against the ground truth.
@@ -303,8 +289,19 @@ These assumptions correspond to the primary UA-DETRAC video detection model repo
 <a id="generate_ytvis19_formatted_json_file_s_"></a>
 ## Generate YTVIS19-formatted JSON files
 
+<a id="model_s_"></a>
+# Models
+The trained models reported in the papers are available in [this hugging face model repo](https://huggingface.co/abhineet123/p2s-video).
 
+Each model archive should be extracted in the `~/pix2seq` while maintaining the folder structure inside the archive.
 
+For example:
+```
+cd ~/pix2seq
+wget https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/late_stage/log_seg_resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb.zip
+unzip log_seg_resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb.zip
+```
+This will extract the checkpoints to `~/pix2seq/log/seg/resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb/`.
 
 <a id="aris_datase_t_"></a>
 ## ARIS dataset
