@@ -117,6 +117,8 @@
 - [lfn](#lfn_)
     - [detrac-0_59       @ lfn](#detrac_0_59___lf_n_)
         - [len-2-aug-fbb       @ detrac-0_59/lfn](#len_2_aug_fbb___detrac_0_59_lf_n_)
+            - [on-60_99-80_per_seq_random_len_2       @ len-2-aug-fbb/detrac-0_59/lfn](#on_60_99_80_per_seq_random_len_2___len_2_aug_fbb_detrac_0_59_lf_n_)
+            - [on-60_99       @ len-2-aug-fbb/detrac-0_59/lfn](#on_60_99___len_2_aug_fbb_detrac_0_59_lf_n_)
         - [len-2-aug-fbb-self2       @ detrac-0_59/lfn](#len_2_aug_fbb_self2___detrac_0_59_lf_n_)
             - [on-train-80_per_seq_random_len_2       @ len-2-aug-fbb-self2/detrac-0_59/lfn](#on_train_80_per_seq_random_len_2___len_2_aug_fbb_self2_detrac_0_59_lf_n_)
             - [on-60_99-80_per_seq_random_len_2       @ len-2-aug-fbb-self2/detrac-0_59/lfn](#on_60_99_80_per_seq_random_len_2___len_2_aug_fbb_self2_detrac_0_59_lf_n_)
@@ -593,6 +595,12 @@ CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_video_det.py --j5=eva
 <a id="len_2_aug_fbb___detrac_0_59_lf_n_"></a>
 ### len-2-aug-fbb       @ detrac-0_59/lfn-->p2s_vid-isl
 python3 run.py --cfg=configs/config_video_det.py --j5=train,resnet-640,vid_det,pt-1,detrac-0_59,batch-256,dbg-0,dyn-1,dist-1,len-2,fbb,jtr,res-1280,lfn
+<a id="on_60_99_80_per_seq_random_len_2___len_2_aug_fbb_detrac_0_59_lf_n_"></a>
+#### on-60_99-80_per_seq_random_len_2       @ len-2-aug-fbb/detrac-0_59/lfn-->p2s_vid-isl
+CUDA_VISIBLE_DEVICES=1 python3 run.py --cfg=configs/config_static_video_det.py --j5=_eval_,vid_det,m-resnet_640_detrac-length-2-stride-1-seq-0_59-batch_256-fbb-jtr-res_1280-lfn,detrac-80_per_seq_random_len_2-60_99,batch-4,save-vis-0,dbg-0,dyn-1,dist-0,len-2,vstrd-2,asi-0,isc
+<a id="on_60_99___len_2_aug_fbb_detrac_0_59_lf_n_"></a>
+#### on-60_99       @ len-2-aug-fbb/detrac-0_59/lfn-->p2s_vid-isl
+CUDA_VISIBLE_DEVICES=1 python3 run.py --cfg=configs/config_static_video_det.py --j5=_eval_,vid_det,m-resnet_640_detrac-length-2-stride-1-seq-0_59-batch_256-fbb-jtr-res_1280-lfn,detrac-60_99,batch-32,save-vis-0,dbg-0,dyn-1,dist-0,len-2,vstrd-1,asi-1
 
 <a id="len_2_aug_fbb_self2___detrac_0_59_lf_n_"></a>
 ### len-2-aug-fbb-self2       @ detrac-0_59/lfn-->p2s_vid-isl

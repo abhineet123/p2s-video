@@ -2,9 +2,9 @@
 
 This is the official implementation of our extension of the [Pix2Seq language modeling framework](https://github.com/google-research/pix2seq) for autoregressive video object detection and panoptic segmentation in images and videos.
 
-- [phd dissertation](docs/p2s_vid_phd_thesis.pdf)
-- [video detection paper](https://ieeexplore.ieee.org/document/11115031) [[pdf]](docs/p2s_vid_det_paper.pdf)
 - [semantic segmentation paper](https://arxiv.org/abs/2602.21627) [[pdf]](docs/p2s_vid_sem_seg_paper.pdf)
+- [video detection paper](https://ieeexplore.ieee.org/document/11115031) [[pdf]](docs/p2s_vid_det_paper.pdf)
+- [phd dissertation](docs/p2s_vid_phd_thesis.pdf)
 
 # Table of Contents
 
@@ -35,9 +35,16 @@ This is the official implementation of our extension of the [Pix2Seq language mo
         - [static detection](#static_detectio_n_)
     - [Create tfrecord files](#create_tfrecord_file_s__1)
         - [sampling](#samplin_g__1)
+    - [Train model](#train_mode_l__1)
+        - [Pseudo multi-machine mode](#pseudo_multi_machine_mode_)
+    - [Run inference](#run_inferenc_e__1)
+        - [Live-inference](#live_inferenc_e__1)
+    - [Evaluate detection performance](#evaluate_detection_performanc_e_)
+        - [Live-inference](#live_inferenc_e__2)
 - [Models](#model_s_)
     - [ARIS dataset](#aris_datase_t_)
     - [IPSC dataset](#ipsc_datase_t_)
+    - [UA-DETRAC dataset](#ua_detrac_datase_t_)
 
 <!-- /MarkdownTOC -->
 
@@ -235,7 +242,7 @@ Run the following command in `~/pix2seq` to train a static semantic segmentation
 ```
 python3 run.py --cfg=configs/config_seg.py  --j5=train,resnet-640,seg-54_126:p-640:r-2560:rot-15_345_1:strd-160_320:sub-8,batch-72,dbg-0,dyn-1,dist-1,gz,pt-1,lac,fbb
 ```
-This command is available in [`tf_seg-ipsc.md`](cmd/p2s_seg-ipsc.md) under [`aug-strd-lac-fbb @ r-2560-p-640-sub-8/54_126-->p2s_seg-ipsc`](cmd/p2s_seg-ipsc.md#aug-strd-lac-fbb--------r-2560-p-640-sub-854_126--p2s_seg-ipsc)
+This command is available in [`p2s_seg-ipsc.md`](cmd/p2s_seg-ipsc.md) under [`aug-strd-lac-fbb @ r-2560-p-640-sub-8/54_126-->p2s_seg-ipsc`](cmd/p2s_seg-ipsc.md#aug-strd-lac-fbb--------r-2560-p-640-sub-854_126--p2s_seg-ipsc)
 
 This will save the checkpoints and tensorboard log files under `~/pix2seq/log/seg/resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb`.
 
@@ -349,7 +356,7 @@ and
 
 <a id="samplin_g_"></a>
 ### sampling
-The test set is far too large for [live inference](#live_inferenc_e_) so we also provide support for sampling small subsets for this purpose.
+The full test set is far too large for [live inference](#live_inferenc_e_), so we also provide support for sampling small subsets for this purpose.
 In our experience, the performance on randomly sampled subsets closely mirrors the performance on the full set.
 
 For example, the following command will sample 40 random subsequences (or 80 frames) from each sequence, thereby reducing the test set size to only 1.6K subsequences:
@@ -368,7 +375,7 @@ unzip detrac_80_per_seq_random_len_2.zip
 
 ```
 
-The script that generates such sample lists is available in our [animal detection repo](https://github.com/abhineet123/animal_detection/blob/master/tf_api/csv_to_record.py) along with the [commands for generating these samples](https://github.com/abhineet123/animal_detection/blob/master/tf_api/cmd/csv_to_record.md#detrac--------sampling_based--csv_to_record).
+The script that we use to generate such sample lists is available in our [animal detection repo](https://github.com/abhineet123/animal_detection/blob/master/tf_api/csv_to_record.py) along with the [commands for generating these samples](https://github.com/abhineet123/animal_detection/blob/master/tf_api/cmd/csv_to_record.md#detrac--------sampling_based--csv_to_record).
 
 <a id="static_detectio_n_"></a>
 ### static detection
@@ -377,7 +384,7 @@ The corresponding commands are available in [xml_to_coco.md](https://github.com/
 
 <a id="create_tfrecord_file_s__1"></a>
 ## Create tfrecord files
-Run the following commands in `~/pin2seq` to generate tfrecord files from the subpatch datasets:
+Run the following commands in `~/pix2seq` to generate tfrecord files from the subpatch datasets:
 ```
 python data/scripts/create_video_tfrecord.py cfg=detrac:0_59:len-2:strd-1:asi-1
 
@@ -392,11 +399,65 @@ and
 
 <a id="samplin_g__1"></a>
 ### sampling
-Run the following command to generate tfrecord files for the previously generated subset:
+Run the following command to generate tfrecord files for the previously generated sampled subset with 80 frames per sequence:
 ```
 python data/scripts/create_video_tfrecord.py cfg=detrac:60_99:len-2:80_per_seq_random_len_2:strd-2:asi-0
 ```
+<a id="train_mode_l__1"></a>
+## Train model
+Run the following command in `~/pix2seq` to train a video object detection model with:
+- 640x640 input-size version of the ResNet-50 backbone 
+- late-fusion video architecture
+- pretrained weights loaded before training (instead of training from scratch)
+- backbone weights kept frozen during training
+- data augmentation with source images resized to 1280x1280 followed by random scaling, jittering, cropping to finally extract 640x640 patches for training
+- single-machine dual-gpu training over a pair of A100 80GB GPUs using the corresponding maximum batch size of _`B=256`_
+```
+python3 run.py --cfg=configs/config_video_det.py --j5=train,resnet-640,vid_det,pt-1,detrac-0_59,batch-256,dbg-0,dyn-1,dist-1,len-2,fbb,jtr,res-1280,lfn
+```
+This command is available in [`p2s_vid-isl.md`](cmd/p2s_vid-isl.md) under [`len-2-aug-fbb @ detrac-0_59/lfn-->p2s_vid-isl`](cmd/p2s_vid-isl.md#len-2-aug-fbb--------detrac-0_59lfn--p2s_vid-isl).
 
+This will save the checkpoints and tensorboard log files under `~/pix2seq/log/video/resnet_640_detrac-length-2-stride-1-seq-0_59-batch_256-fbb-jtr-res_1280-lfn`.
+
+<a id="pseudo_multi_machine_mode_"></a>
+### Pseudo multi-machine mode
+We trained this model on a cloud-based VM with 2 x A100 80 GB GPUs and, for some networking-related reason, simply running in single-machine dual-GPU trainingmode as above led to very low GPU usage and therefore very slow training.
+We were able to fix this by running in pseudo-multi-machine training mode by using `CUDA_VISIBLE_DEVICES` to hide one GPU each in two different runs to simulate running on two machines with a single A100 each.
+The commands for running this way are under [len-2-aug-fbb-self2 @ detrac-0_59/lfn-->p2s_vid-isl](cmd/p2s_vid-isl.md#len-2-aug-fbb-self2--------detrac-0_59lfn--p2s_vid-isl).
+
+<a id="run_inferenc_e__1"></a>
+## Run inference
+Run the following command in `~/pix2seq` to perform inference on the latest trained checkpoint over the test set and using a single RTX 3090 with batch size 32:
+```
+CUDA_VISIBLE_DEVICES=1 python3 run.py --cfg=configs/config_static_video_det.py --j5=_eval_,vid_det,m-resnet_640_detrac-length-2-stride-1-seq-0_59-batch_256-fbb-jtr-res_1280-lfn,detrac-60_99,batch-32,save-vis-0,dbg-0,dyn-1,dist-0,len-2,vstrd-1,asi-1
+```
+This will save the predicted detections as sequence-wise csv files under `~/pix2seq/log/video/resnet_640_detrac-length-2-stride-1-seq-0_59-batch_256-fbb-jtr-res_1280-lfn/ckpt-21582-detrac-length-2-stride-1-seq-60_99/csv-batch_32`.
+
+This command is available in [`p2s_vid-isl.md`](cmd/p2s_vid-isl.md) under [`on-60_99 @ len-2-aug-fbb/detrac-0_59/lfn-->p2s_vid-isl`](cmd/p2s_vid-isl.md#on-60_99--------len-2-aug-fbbdetrac-0_59lfn--p2s_vid-isl).
+
+<a id="live_inferenc_e__1"></a>
+### Live-inference
+A live-inference version of the above command on the previously generated sampled subset is available under [`on-60_99-80_per_seq_random_len_2 @ len-2-aug-fbb/detrac-0_59/lfn-->p2s_vid-isl`](cmd/p2s_vid-isl.md#on-60_99-80_per_seq_random_len_2--------len-2-aug-fbbdetrac-0_59lfn--p2s_vid-isl):
+```
+CUDA_VISIBLE_DEVICES=1 python3 run.py --cfg=configs/config_static_video_det.py --j5=_eval_,vid_det,m-resnet_640_detrac-length-2-stride-1-seq-0_59-batch_256-fbb-jtr-res_1280-lfn,detrac-80_per_seq_random_len_2-60_99,batch-4,save-vis-0,dbg-0,dyn-1,dist-0,len-2,vstrd-2,asi-0,isc
+```
+
+<a id="evaluate_detection_performanc_e_"></a>
+## Evaluate detection performance
+Run the following command in `~/ipsc/ipsc_data_processing` to evaluate the detection performance of the latest checkpoint:
+```
+python3 eval_det.py cfg=p2s:vid,detrac:60_99:gt-1:ign:nms-1:vnms-1:show-0:proc-1:_in_-resnet_640_detrac-length-2-stride-1-seq-0_59-batch_256-fbb-jtr-res_1280-lfn/ckpt-__var__-detrac-length-2-stride-1-seq-60_99/csv-batch_32:_out_-p2s-lfn-detrac-0_59-len-2-60_99-aug-fbb-strd-1
+```
+This command is available in [`eval_p2s_vid-isl.md`](https://github.com/abhineet123/ipsc_prediction/blob/master/ipsc_data_processing/cmd/eval_p2s_vid-isl.md) under [`on-60_99-strd-1 @ len-2-aug-fbb/detrac-0_59/lfn-->eval_p2s_vid-isl`](https://github.com/abhineet123/ipsc_prediction/blob/master/ipsc_data_processing/cmd/eval_p2s_vid-isl.md#on-60_99-strd-1--------len-2-aug-fbbdetrac-0_59lfn--eval_p2s_vid-isl)
+
+This command will output the detection metrics for the tested checkpoint under `/data/mAP/p2s-lfn-detrac-0_59-len-2-60_99-aug-fbb-strd-1`.
+
+<a id="live_inferenc_e__2"></a>
+### Live-inference
+A live-inference version of the above command on the sampled subset is available under [`on-60_99-80_per_seq_random_len_2  @ len-2-aug-fbb/detrac-0_59/lfn-->eval_p2s_vid-isl`](https://github.com/abhineet123/ipsc_prediction/blob/master/ipsc_data_processing/cmd/eval_p2s_vid-isl.md#on-60_99-80_per_seq_random_len_2--------len-2-aug-fbbdetrac-0_59lfn--eval_p2s_vid-isl):
+```
+python3 eval_det.py cfg=p2s:vid,detrac:80_per_seq_random_len_2:60_99:gt-0:ign:nms-1:show-0:proc-1:_in_-resnet_640_detrac-length-2-stride-1-seq-0_59-batch_256-fbb-jtr-res_1280-lfn/ckpt-__var__-detrac-length-2-stride-2-80_per_seq_random_len_2-seq-60_99/csv-batch_4:_out_-p2s-lfn-detrac-0_59-len-2-60_99-80_per_seq_random_len_2-aug-fbb
+```
 
 <a id="model_s_"></a>
 # Models
@@ -428,3 +489,16 @@ This will extract the checkpoints to `~/pix2seq/log/seg/resnet_640_resize_2560-5
 - late stage training
     - [static segmentation](https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/late_stage/log_seg_resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb.zip)
     - [video segmentation](https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/late_stage/log_video_seg_resnet_640_resize_2560-54_126-640_640-640_640-length-8-stride-1-sub_8-tac-mc-batch_8-voc15-seq3k-fbb.zip)
+    
+<a id="ua_detrac_datase_t_"></a>
+## UA-DETRAC dataset
+- Early Fusion
+    - [N=2](https://huggingface.co/abhineet123/p2s-video/blob/main/DETRAC/log_video_swin_t_pt_640_detrac-length-2-stride-1-seq-0_59-batch_80-jtr-res_1280-self2-0.zip)
+- Middle Fusion
+    - [N=2](https://huggingface.co/abhineet123/p2s-video/resolve/main/DETRAC/log_video_resnet_640_detrac-length-2-stride-1-seq-0_59-batch_320-fbb-jtr-res_1280.zip)
+    - [N=3](https://huggingface.co/abhineet123/p2s-video/resolve/main/DETRAC/log_video_resnet_640_detrac-length-3-stride-1-seq-0_59-batch_216-fbb-jtr-res_1280-seq640-self2-0.zip)
+- Late Fusion
+    - [N=2](https://huggingface.co/abhineet123/p2s-video/blob/main/DETRAC/log_video_resnet_640_detrac-length-2-stride-1-seq-0_59-batch_256-fbb-jtr-res_1280-lfn-self2-0.zip)
+    - [N=3](https://huggingface.co/abhineet123/p2s-video/blob/main/DETRAC/log_video_resnet_640_detrac-length-3-stride-1-seq-0_59-batch_168-fbb-jtr-res_1280-lfn-seq640-self2-0.zip)
+    - [N=4](https://huggingface.co/abhineet123/p2s-video/blob/main/DETRAC/log_video_resnet_640_detrac-length-4-stride-1-seq-0_59-batch_96-fbb-jtr-res_1280-seq1k-lfn-zexg.zip)
+
