@@ -42,9 +42,11 @@ This is the official implementation of our extension of the [Pix2Seq language mo
     - [Evaluate detection performance](#evaluate_detection_performanc_e_)
         - [Live-inference](#live_inferenc_e__2)
 - [Models](#model_s_)
-    - [ARIS dataset](#aris_datase_t_)
-    - [IPSC dataset](#ipsc_datase_t_)
-    - [UA-DETRAC dataset](#ua_detrac_datase_t_)
+    - [Semantic Segmentation](#semantic_segmentation_)
+        - [ARIS dataset](#aris_datase_t_)
+        - [IPSC dataset](#ipsc_datase_t_)
+    - [Object Detection](#object_detectio_n_)
+        - [UA-DETRAC dataset](#ua_detrac_datase_t_)
 
 <!-- /MarkdownTOC -->
 
@@ -473,8 +475,10 @@ unzip log_seg_resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-l
 ```
 This will extract the checkpoints to `~/pix2seq/log/seg/resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb/`.
 
+<a id="semantic_segmentation_"></a>
+## Semantic Segmentation
 <a id="aris_datase_t_"></a>
-## ARIS dataset
+### ARIS dataset
 - [32 training images](https://huggingface.co/abhineet123/p2s-video/blob/main/ARIS/log_seg_resnet_1024_resize_1280-0_31-1024_1024-64_256-rot_15_345_16-flip-sub_8-lac-617-batch_4-seq3k.zip)
 - [24 training images](https://huggingface.co/abhineet123/p2s-video/blob/main/ARIS/log_seg_resnet_640_0_23-640_640-64_256-rot_15_345_8-flip-sub_8-lac-617-batch_12-seq1k_d3_260315_160611.zip)
 - [16 training images](https://huggingface.co/abhineet123/p2s-video/blob/main/ARIS/log_seg_resnet_640_0_15-640_640-64_256-rot_15_345_8-flip-sub_8-lac-617-batch_12-seq1k_d3_260315_160437.zip)
@@ -482,7 +486,7 @@ This will extract the checkpoints to `~/pix2seq/log/seg/resnet_640_resize_2560-5
 - [4 training images](https://huggingface.co/abhineet123/p2s-video/blob/main/ARIS/log_seg_resnet_640_0_3-640_640-64_256-rot_15_345_8-flip-sub_8-lac-617-batch_12-seq1k.zip)
 
 <a id="ipsc_datase_t_"></a>
-## IPSC dataset
+### IPSC dataset
 - early stage training
     - [static segmentation](https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/early_stage/log_seg_resnet_640_resize_640-16_53-640_640-640_640-rot_15_345_4-flip-sub_2-2d-lac-batch_8-seq3k.zip)
     - [video segmentation](https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/early_stage/log_video_seg_resnet_640_resize_2560-16_53-640_640-640_640-length-8-stride-1-sub_8-tac-mc-batch_4-seq3k.zip)
@@ -490,8 +494,10 @@ This will extract the checkpoints to `~/pix2seq/log/seg/resnet_640_resize_2560-5
     - [static segmentation](https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/late_stage/log_seg_resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb.zip)
     - [video segmentation](https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/late_stage/log_video_seg_resnet_640_resize_2560-54_126-640_640-640_640-length-8-stride-1-sub_8-tac-mc-batch_8-voc15-seq3k-fbb.zip)
     
+<a id="object_detectio_n_"></a>
+## Object Detection
 <a id="ua_detrac_datase_t_"></a>
-## UA-DETRAC dataset
+### UA-DETRAC dataset
 - Early Fusion
     - [N=2](https://huggingface.co/abhineet123/p2s-video/resolve/main/DETRAC/log_video_swin_t_pt_640_detrac-length-2-stride-1-seq-0_59-batch_80-jtr-res_1280-self2-0.zip)
 - Middle Fusion
