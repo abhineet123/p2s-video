@@ -493,10 +493,11 @@ This will extract the checkpoints to `~/pix2seq/log/seg/resnet_640_resize_2560-5
 <a id="ua_detrac_datase_t_"></a>
 ## UA-DETRAC dataset
 - Early Fusion
-    - [N=2](https://huggingface.co/abhineet123/p2s-video/blob/main/DETRAC/log_video_swin_t_pt_640_detrac-length-2-stride-1-seq-0_59-batch_80-jtr-res_1280-self2-0.zip)
+    - [N=2](https://huggingface.co/abhineet123/p2s-video/resolve/main/DETRAC/log_video_swin_t_pt_640_detrac-length-2-stride-1-seq-0_59-batch_80-jtr-res_1280-self2-0.zip)
 - Middle Fusion
     - [N=2](https://huggingface.co/abhineet123/p2s-video/resolve/main/DETRAC/log_video_resnet_640_detrac-length-2-stride-1-seq-0_59-batch_320-fbb-jtr-res_1280.zip)
     - [N=3](https://huggingface.co/abhineet123/p2s-video/resolve/main/DETRAC/log_video_resnet_640_detrac-length-3-stride-1-seq-0_59-batch_216-fbb-jtr-res_1280-seq640-self2-0.zip)
+    - [N=4](https://huggingface.co/abhineet123/p2s-video/resolve/main/DETRAC/log_video_resnet_640_detrac-length-4-stride-1-seq-0_59-batch_160-fbb-jtr-res_1280-seq1k-zexg.zip)
 - Late Fusion
     - [N=2](https://huggingface.co/abhineet123/p2s-video/blob/main/DETRAC/log_video_resnet_640_detrac-length-2-stride-1-seq-0_59-batch_256-fbb-jtr-res_1280-lfn-self2-0.zip)
     - [N=3](https://huggingface.co/abhineet123/p2s-video/blob/main/DETRAC/log_video_resnet_640_detrac-length-3-stride-1-seq-0_59-batch_168-fbb-jtr-res_1280-lfn-seq640-self2-0.zip)
