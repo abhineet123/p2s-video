@@ -303,7 +303,7 @@ Assumptions:
 - We want train on video subsequences made up of _`N=2`_ consecutive frames
 - We want to use the 640x640 input size version of the ResNet50 backbone and keep the backbone weights frozen during training
 - We want to use the late-fusion video architecture 
-- We want to finetune a model with COCO-pretrained weights instead opf training from scratch
+- We want to finetune a model with COCO-pretrained weights instead of training from scratch
 
 These assumptions correspond to the primary UA-DETRAC video detection model reported in the [paper](docs/p2s_vid_det_paper.pdf).
 
