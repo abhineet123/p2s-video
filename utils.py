@@ -958,7 +958,7 @@ def get_remote_ckpt(checkpoint_dir, remote, proxy, ckpt_iter=None, oldest_ckpt_f
     # new_remote_ckpts_str = '\n'.join(new_remote_ckpts)
     # print(f'\nnew_remote_ckpts:\n{new_remote_ckpts_str}\n')
 
-    new_remote_ckpts.sort(reverse=oldest_ckpt_first)
+    new_remote_ckpts.sort(reverse=oldest_ckpt_first, key=lambda x:get_ckpt_iter(x))
 
     ckpt_path = None
 
