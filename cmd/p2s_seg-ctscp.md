@@ -2,6 +2,10 @@
 
 - [train](#train_)
     - [p-1024-sub-8-lac-fbb       @ train](#p_1024_sub_8_lac_fbb___trai_n_)
+    - [p-1024-sub-4-lac-bac-fbb       @ train](#p_1024_sub_4_lac_bac_fbb___trai_n_)
+    - [p-1024-res-640-sub-4-lac-bac-fbb       @ train](#p_1024_res_640_sub_4_lac_bac_fbb___trai_n_)
+        - [on-val-put       @ p-1024-res-640-sub-4-lac-bac-fbb/train](#on_val_put___p_1024_res_640_sub_4_lac_bac_fbb_train_)
+        - [on-val       @ p-1024-res-640-sub-4-lac-bac-fbb/train](#on_val___p_1024_res_640_sub_4_lac_bac_fbb_train_)
     - [r-640-sub-8-dm2-fbb       @ train](#r_640_sub_8_dm2_fbb___trai_n_)
         - [on-val-put       @ r-640-sub-8-dm2-fbb/train](#on_val_put___r_640_sub_8_dm2_fbb_trai_n_)
         - [on-val       @ r-640-sub-8-dm2-fbb/train](#on_val___r_640_sub_8_dm2_fbb_trai_n_)
@@ -52,6 +56,28 @@
 python3 run.py --cfg=configs/config_seg.py  --j5=_train_,resnet-1024,ctscp-train,seg-p-1024:sub-8,lac,batch-32,dbg-0,dyn-1,dist-2,pt-1,seq3k,voc20,fbb,gdez
 `single gpu`
 CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=_train_,resnet-1024,ctscp-train,seg-p-1024:sub-8,lac,batch-4,dbg-0,dyn-1,dist-0,pt-1,seq3k,voc20,fbb
+
+<a id="p_1024_sub_4_lac_bac_fbb___trai_n_"></a>
+## p-1024-sub-4-lac-bac-fbb       @ train-->p2s_seg-ctscp
+`single gpu`
+CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=_train_,resnet-1024,ctscp-train,seg-p-1024:sub-4,lac,bac,batch-2,dbg-0,dyn-1,dist-0,pt-1,seq4k,voc5248,fbb
+
+<a id="p_1024_res_640_sub_4_lac_bac_fbb___trai_n_"></a>
+## p-1024-res-640-sub-4-lac-bac-fbb       @ train-->p2s_seg-ctscp
+python3 run.py --cfg=configs/config_seg.py  --j5=_train_,resnet-640,ctscp-train,res-640,seg-p-1024:sub-4,lac,bac,batch-24,dbg-0,dyn-1,dist-2,pt-1,seq4k,voc5248,fbb,gdez
+`single gpu`
+CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=_train_,resnet-640,ctscp-train,res-640,seg-p-1024:sub-4,lac,bac,batch-4,dbg-0,dyn-1,dist-0,pt-1,seq4k,voc5248,fbb
+```
+watch tail -1 log/seg/resnet_640_ctscp-train-1024_1024-1024_1024-sub_4-bac-lac-res_640-batch_24-seq4k-voc5248-fbb-gdez/progress_log.txt
+```
+<a id="on_val_put___p_1024_res_640_sub_4_lac_bac_fbb_train_"></a>
+### on-val-put       @ p-1024-res-640-sub-4-lac-bac-fbb/train-->p2s_seg-ctscp
+`hp8470p_put`
+CUDA_VISIBLE_DEVICES= python3 run.py --cfg=configs/config_seg.py  --j5=m-resnet_640_ctscp-train-1024_1024-1024_1024-sub_4-bac-lac-res_640-batch_24-seq4k-voc5248-fbb-gdez,_eval_,ctscp-val,batch-2,save-vis-0,dbg-0,dyn-1,seg-p-1024:sub-4,no_vid,logits,hp8470p_put-6
+<a id="on_val___p_1024_res_640_sub_4_lac_bac_fbb_train_"></a>
+### on-val       @ p-1024-res-640-sub-4-lac-bac-fbb/train-->p2s_seg-ctscp
+CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-sub_5-lac-batch_32-seq3k-voc19b-gdez,_eval_,ctscp-val,batch-16,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-5,no_vid,logits,8470p
+
 
 <a id="r_640_sub_8_dm2_fbb___trai_n_"></a>
 ## r-640-sub-8-dm2-fbb       @ train-->p2s_seg-ctscp
@@ -143,7 +169,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=_train_,
 CUDA_VISIBLE_DEVICES= python3 run.py --cfg=configs/config_seg.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-sub_5-lac-batch_32-seq3k-voc19b-gdez,_eval_,ctscp-val,batch-2,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-5,no_vid,logits,hp8470p_put-6
 <a id="on_val___r_1280_640_p_640_sub_5_lac_train_"></a>
 ### on-val       @ r-1280_640-p-640-sub-5-lac/train-->p2s_seg-ctscp
-CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-sub_5-lac-batch_32-seq3k-voc19b-gdez,_eval_,ctscp-val,batch-2,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-5,no_vid,logits,8470p
+CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=m-resnet_640_ctscp-train-resize_1280x640-640_640-640_640-sub_5-lac-batch_32-seq3k-voc19b-gdez,_eval_,ctscp-val,batch-16,save-vis-0,dbg-0,dyn-1,seg-r-1280_640:p-640:sub-5,no_vid,logits,8470p
 
 
 <a id="r_1280_640_p_640_sub_5_lac_fbb___trai_n_"></a>

@@ -4,6 +4,7 @@
     - [orig       @ val](#orig___va_l_)
         - [p-1024       @ orig/val](#p_1024___orig_val_)
             - [lac       @ p-1024/orig/val](#lac___p_1024_orig_va_l_)
+            - [lac-bac       @ p-1024/orig/val](#lac_bac___p_1024_orig_va_l_)
             - [lac-2d       @ p-1024/orig/val](#lac_2d___p_1024_orig_va_l_)
             - [rfm       @ p-1024/orig/val](#rfm___p_1024_orig_va_l_)
     - [r-1280_640       @ val](#r_1280_640___va_l_)
@@ -19,8 +20,9 @@
             - [lac-2d       @ p-1024/orig/train](#lac_2d___p_1024_orig_trai_n_)
             - [rfm       @ p-1024/orig/train](#rfm___p_1024_orig_trai_n_)
             - [cw-2d       @ p-1024/orig/train](#cw_2d___p_1024_orig_trai_n_)
-            - [no_starts       @ p-1024/orig/train](#no_starts___p_1024_orig_trai_n_)
-            - [cw-no_starts       @ p-1024/orig/train](#cw_no_starts___p_1024_orig_trai_n_)
+            - [bac       @ p-1024/orig/train](#bac___p_1024_orig_trai_n_)
+            - [lac-bac       @ p-1024/orig/train](#lac_bac___p_1024_orig_trai_n_)
+            - [cw-bac       @ p-1024/orig/train](#cw_bac___p_1024_orig_trai_n_)
         - [p-640       @ orig/train](#p_640___orig_train_)
             - [rfm       @ p-640/orig/train](#rfm___p_640_orig_train_)
     - [r-1280_640       @ train](#r_1280_640___trai_n_)
@@ -32,8 +34,9 @@
             - [cw-2d       @ p-640/r-1280_640/train](#cw_2d___p_640_r_1280_640_train_)
             - [lac       @ p-640/r-1280_640/train](#lac___p_640_r_1280_640_train_)
             - [lac-2d       @ p-640/r-1280_640/train](#lac_2d___p_640_r_1280_640_train_)
-            - [no_starts       @ p-640/r-1280_640/train](#no_starts___p_640_r_1280_640_train_)
-            - [cw-no_starts       @ p-640/r-1280_640/train](#cw_no_starts___p_640_r_1280_640_train_)
+            - [bac       @ p-640/r-1280_640/train](#bac___p_640_r_1280_640_train_)
+            - [lac-bac       @ p-640/r-1280_640/train](#lac_bac___p_640_r_1280_640_train_)
+            - [cw-bac       @ p-640/r-1280_640/train](#cw_bac___p_640_r_1280_640_train_)
     - [r-1024       @ train](#r_1024___trai_n_)
         - [json       @ r-1024/train](#json___r_1024_train_)
         - [stats       @ r-1024/train](#stats___r_1024_train_)
@@ -59,6 +62,9 @@
 <a id="lac___p_1024_orig_va_l_"></a>
 #### lac       @ p-1024/orig/val-->tf_seg-ctscp
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:p-1024:sub-8:lac:chk-0:vid-0
+<a id="lac_bac___p_1024_orig_va_l_"></a>
+#### lac-bac       @ p-1024/orig/val-->tf_seg-ctscp
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:p-1024:sub-4:lac:bac:chk-1:vid-0
 <a id="lac_2d___p_1024_orig_va_l_"></a>
 #### lac-2d       @ p-1024/orig/val-->tf_seg-ctscp
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:p-1024:sub-8:lac:2d:chk-0:vid-0
@@ -119,16 +125,21 @@ python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:rfm:vid-0:seq-
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-8:cw:2d:chk-0:stats-2:vid-0
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-4:cw:2d:chk-0:stats-2:vid-0
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-2:cw:2d:chk-0:stats-2:vid-0
-<a id="no_starts___p_1024_orig_trai_n_"></a>
-#### no_starts       @ p-1024/orig/train-->tf_seg-ctscp
-python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-8:no_starts:chk-1:stats-1:vid-0
-python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-4:no_starts:chk-1:stats-1:vid-0
-python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-2:no_starts:chk-1:stats-1:vid-0
-<a id="cw_no_starts___p_1024_orig_trai_n_"></a>
-#### cw-no_starts       @ p-1024/orig/train-->tf_seg-ctscp
-python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-8:cw:no_starts:chk-0:stats-2:vid-0
-python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-4:cw:no_starts:chk-0:stats-2:vid-0
-python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-2:cw:no_starts:chk-0:stats-2:vid-0
+<a id="bac___p_1024_orig_trai_n_"></a>
+#### bac       @ p-1024/orig/train-->tf_seg-ctscp
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-8:bac:chk-1:stats-1:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-4:bac:chk-1:stats-1:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-2:bac:chk-1:stats-1:vid-0
+<a id="lac_bac___p_1024_orig_trai_n_"></a>
+#### lac-bac       @ p-1024/orig/train-->tf_seg-ctscp
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-8:lac:bac:chk-1:stats-1:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-4:lac:bac:chk-1:stats-1:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-2:lac:bac:chk-1:stats-1:vid-0
+<a id="cw_bac___p_1024_orig_trai_n_"></a>
+#### cw-bac       @ p-1024/orig/train-->tf_seg-ctscp
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-8:cw:bac:chk-0:stats-2:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-4:cw:bac:chk-0:stats-2:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:p-1024:sub-2:cw:bac:chk-0:stats-2:vid-0
 
 <a id="p_640___orig_train_"></a>
 ### p-640       @ orig/train-->tf_seg-ctscp
@@ -178,16 +189,21 @@ python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-
 #### lac-2d       @ p-640/r-1280_640/train-->tf_seg-ctscp
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-2:lac:2d:chk-0:vid-0
 
-<a id="no_starts___p_640_r_1280_640_train_"></a>
-#### no_starts       @ p-640/r-1280_640/train-->tf_seg-ctscp
-python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-8:no_starts:chk-1:stats-1:vid-0
-python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-4:no_starts:chk-1:stats-1:vid-0
-python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-2:no_starts:chk-1:stats-1:vid-0
-<a id="cw_no_starts___p_640_r_1280_640_train_"></a>
-#### cw-no_starts       @ p-640/r-1280_640/train-->tf_seg-ctscp
-python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-8:cw:no_starts:chk-0:stats-2:vid-0
-python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-4:cw:no_starts:chk-0:stats-2:vid-0
-python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-2:cw:no_starts:chk-0:stats-2:vid-0
+<a id="bac___p_640_r_1280_640_train_"></a>
+#### bac       @ p-640/r-1280_640/train-->tf_seg-ctscp
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-8:bac:chk-1:stats-1:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-4:bac:chk-1:stats-1:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-2:bac:chk-1:stats-1:vid-0
+<a id="lac_bac___p_640_r_1280_640_train_"></a>
+#### lac-bac       @ p-640/r-1280_640/train-->tf_seg-ctscp
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-8:bac:lac:chk-1:stats-1:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-4:bac:lac:chk-1:stats-1:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-2:bac:lac:chk-1:stats-1:vid-0
+<a id="cw_bac___p_640_r_1280_640_train_"></a>
+#### cw-bac       @ p-640/r-1280_640/train-->tf_seg-ctscp
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-8:cw:bac:chk-0:stats-2:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-4:cw:bac:chk-0:stats-2:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:train:r-1280_640:p-640:sub-2:cw:bac:chk-0:stats-2:vid-0
 
 
 <a id="r_1024___trai_n_"></a>

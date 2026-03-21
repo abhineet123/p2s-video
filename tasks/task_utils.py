@@ -551,7 +551,7 @@ def check_rle_tokens(
         flat_order,
         class_to_col,
         is_vis,
-        no_starts=False,
+        bkg_as_class=False,
         diff_mask=False,
 ):
     mask_gt = mask_to_gs(mask, copy=True)
@@ -581,7 +581,7 @@ def check_rle_tokens(
         max_length = int(max_length / subsample)
         n_rows, n_cols = int(n_rows / subsample), int(n_cols / subsample)
 
-    if no_starts:
+    if bkg_as_class:
         mask_rec = mask_from_tokens_no_starts(
             rle_tokens,
             (n_rows, n_cols),
@@ -2398,7 +2398,7 @@ def subsample_rle(starts, lengths, subsample, shape, max_length, flat_order):
 
 def rle_to_tokens(rle_cmp, shape, length_as_class,
                   starts_offset, lengths_offset, class_offset,
-                  starts_2d, flat_order, no_starts=False, diff_mask=False):
+                  starts_2d, flat_order, bkg_as_class=False, diff_mask=False):
     class_ids = None
     if diff_mask:
         starts, class_ids = rle_cmp
@@ -2408,7 +2408,7 @@ def rle_to_tokens(rle_cmp, shape, length_as_class,
         starts = np.copy(starts)
         class_ids = np.copy(class_ids)
     else:
-        if no_starts:
+        if bkg_as_class:
             lengths = rle_cmp[0]
         else:
             starts, lengths = rle_cmp[:2]
@@ -2420,24 +2420,34 @@ def rle_to_tokens(rle_cmp, shape, length_as_class,
             return []
 
         if length_as_class:
-            assert len(rle_cmp) == 1 if no_starts else 2, "rle must have 2 components with length_as_class enabled"
+            if bkg_as_class:
+                assert len(rle_cmp) == 1, "rle must have only 1 component with bkg_as_class and length_as_class enabled"
+            else:
+                assert len(rle_cmp) == 2, "rle must have 2 components with length_as_class enabled"
             lengths += class_offset
         else:
             lengths += lengths_offset
 
-        if len(rle_cmp) == 3:
-            class_ids = np.copy(np.asarray(rle_cmp[-1]))
+        if bkg_as_class:
+            if len(rle_cmp) == 2:
+                class_ids = np.copy(np.asarray(rle_cmp[-1]))
+            else:
+                assert len(rle_cmp) == 1, "rle_cmp length must be 1 or 2 with bkg_as_class"
+                assert length_as_class, "rle_cmp length can be 1 only if length_as_class is on"
         else:
-            assert len(rle_cmp) == 2, "rle_cmp length must be 2 or 3"
+            if len(rle_cmp) == 3:
+                class_ids = np.copy(np.asarray(rle_cmp[-1]))
+            else:
+                assert len(rle_cmp) == 2, "rle_cmp length must be 2 or 3"
 
-    if no_starts:
+    if bkg_as_class:
         rle_tokens_cmp = [lengths, ]
         if len(rle_cmp) == 2:
             class_ids = np.copy(np.asarray(rle_cmp[-1]))
             class_ids += class_offset
             rle_tokens_cmp.append(class_ids)
         else:
-            assert len(rle_cmp) == 2, "rle_cmp length must be 2 or 3"
+            assert length_as_class, "rle_cmp length can be 1 only if length_as_class is on"
     else:
         if starts_2d:
             starts_rows, starts_cols = np.unravel_index(starts, shape, order=flat_order)
@@ -3958,7 +3968,7 @@ def mask_to_rle(mask, max_length, n_classes, order, return_unsplit=0):
         return all_starts, all_lengths
 
 
-def mask_to_rle_no_starts(mask, max_length, n_classes, order, return_unsplit):
+def mask_to_rle_bac(mask, max_length, n_classes, order, return_unsplit):
     """
     https://www.kaggle.com/stainsby/fast-tested-rle
     https://ccshenyltw.medium.com/run-length-encode-and-decode-a33383142e6b

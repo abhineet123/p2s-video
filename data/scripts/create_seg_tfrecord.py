@@ -108,7 +108,7 @@ class Params(paramparse.CFG):
         :ivar starts_2d:
         represent each start with 2D coordinates (x, y) instead of 1D coordinate corresponding to the flattened mask
 
-        :ivar no_starts:
+        :ivar bkg_as_class:
         represent runs with only (length, class) pairs, thus removing starts
 
         :ivar flat_order: order in which to flatten the mask before computing the RLE
@@ -129,12 +129,12 @@ class Params(paramparse.CFG):
 
         def __init__(self):
             self.length_as_class = 0
+            self.bkg_as_class = 0
 
             self.diff_mask = 0
             self.flat_order = 'C'
             self.max_length = 0
             self.max_length_factor = 0
-            self.no_starts = 0
             self.starts_2d = 0
             self.starts_offset = 1000
             self.lengths_offset = 100
@@ -159,12 +159,12 @@ def get_rle_suffix(params: Params.RLE, multi_class):
     elif params.diff_mask == 2:
         rle_suffixes.append(f'dm2')
 
-    if params.no_starts:
-        assert not params.starts_2d, "no_starts and starts_2d cannot both be enabled"
-        rle_suffixes.append(f'nos')
+    if params.bkg_as_class:
+        assert not params.starts_2d, "bkg_as_class and starts_2d cannot both be enabled"
+        rle_suffixes.append(f'bac')
 
     if params.starts_2d:
-        assert not params.no_starts, "no_starts and starts_2d cannot both be enabled"
+        assert not params.bkg_as_class, "bkg_as_class and starts_2d cannot both be enabled"
         rle_suffixes.append(f'2d')
 
     if params.shared_coord:
@@ -428,10 +428,10 @@ def get_rle_tokens(
 ):
     multi_class = n_classes > 2
 
-    if params.rle.no_starts:
-        assert not params.rle.diff_mask, "diff_mask is incompatible with no_starts"
-        assert subsample_method != 1, "rle subsampling is currently not supported with no_starts"
-        lengths, class_ids, lengths_unsplit, class_ids_unsplit = task_utils.mask_to_rle_no_starts(
+    if params.rle.bkg_as_class:
+        assert not params.rle.diff_mask, "diff_mask is incompatible with bkg_as_class"
+        assert subsample_method != 1, "rle subsampling is currently not supported with bkg_as_class"
+        lengths, class_ids, lengths_unsplit, class_ids_unsplit = task_utils.mask_to_rle_bac(
             mask=mask_sub,
             max_length=max_length_sub,
             n_classes=n_classes,
@@ -440,7 +440,8 @@ def get_rle_tokens(
         )
         rle_cmp = [np.copy(lengths), np.copy(class_ids)]
         rle_cmp_unsplit = [lengths_unsplit, class_ids_unsplit]
-
+        if params.rle.length_as_class:
+            rle_cmp = task_utils.rle_to_lac(rle_cmp, max_length_sub)
     else:
         if params.rle.diff_mask:
             mask_sub = task_utils.mask_to_diff(mask_sub, n_classes - 1,
@@ -503,13 +504,12 @@ def get_rle_tokens(
 
             if multi_class:
                 assert params.rle.class_offset > 0, "class_offset must be > 0"
-                if not params.rle.no_starts:
-                    class_ids = task_utils.get_rle_class_ids(
-                        mask_sub,
-                        starts,
-                        n_classes=n_classes,
-                        order=params.rle.flat_order)
-                    rle_cmp.append(class_ids)
+                class_ids = task_utils.get_rle_class_ids(
+                    mask_sub,
+                    starts,
+                    n_classes=n_classes,
+                    order=params.rle.flat_order)
+                rle_cmp.append(class_ids)
                 if params.rle.length_as_class:
                     rle_cmp = task_utils.rle_to_lac(rle_cmp, max_length_sub)
 
@@ -518,7 +518,7 @@ def get_rle_tokens(
 
     if params.vis:
         assert not params.rle.diff_mask, "diff_mask rle vis is currently not supported"
-        assert not params.rle.no_starts, "no_starts rle vis is currently not supported"
+        assert not params.rle.bkg_as_class, "bkg_as_class rle vis is currently not supported"
         run_txts = task_utils.vis_rle(
             rle_cmp,
             params.rle.length_as_class,
@@ -540,11 +540,11 @@ def get_rle_tokens(
         class_offset=params.rle.class_offset,
         starts_2d=params.rle.starts_2d,
         flat_order=params.rle.flat_order,
-        no_starts=params.rle.no_starts,
+        bkg_as_class=params.rle.bkg_as_class,
         diff_mask=params.rle.diff_mask,
     )
     rle_len = len(rle_tokens)
-    if params.rle.no_starts:
+    if params.rle.bkg_as_class:
         if params.rle.length_as_class:
             n_tokens_per_run = 1
         else:
@@ -560,7 +560,7 @@ def get_rle_tokens(
     assert n_runs * n_tokens_per_run == rle_len, f"mismatch between n_runs and rle_len"
 
     if params.check:
-        # assert not params.rle.no_starts, "no_starts rle check is currently not supported"
+        # assert not params.rle.bkg_as_class, "bkg_as_class rle check is currently not supported"
         task_utils.check_rle_tokens(
             image, mask, mask_sub, rle_tokens,
             n_classes,
@@ -575,7 +575,7 @@ def get_rle_tokens(
             params.rle.flat_order,
             class_id_to_col,
             is_vis=False,
-            no_starts=params.rle.no_starts,
+            bkg_as_class=params.rle.bkg_as_class,
             diff_mask=params.rle.diff_mask,
         )
 
@@ -1021,7 +1021,7 @@ def create_tf_example(
             )
             if rle_len > 0:
                 if not params.rle.diff_mask:
-                    if params.rle.no_starts:
+                    if params.rle.bkg_as_class:
                         lengths_unsplit, class_ids_unsplit = rle_cmp_unsplit
                     else:
                         starts_unsplit, lengths_unsplit = rle_cmp_unsplit

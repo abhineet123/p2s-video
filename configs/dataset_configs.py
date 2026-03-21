@@ -164,6 +164,7 @@ def get_shared_seg_data():
         multi_class=0,
         diff_mask=0,
         length_as_class=0,
+        bkg_as_class=0,
         starts_2d=0,
         shared_coord=0,
         flat_order='C',
@@ -286,7 +287,7 @@ def ipsc_post_process(ds_cfg, task_cfg, model_cfg, training):
         modes = ['eval']
 
     # modes = ['train', 'eval']
-    diff_mask = length_as_class = time_as_class = starts_2d = shared_coord = flat_order = \
+    diff_mask = bkg_as_class = length_as_class = time_as_class = starts_2d = shared_coord = flat_order = \
         multi_class = class_wise = instance_wise = None
 
     if is_seg:
@@ -294,6 +295,7 @@ def ipsc_post_process(ds_cfg, task_cfg, model_cfg, training):
         time_as_class = ds_cfg[f'time_as_class'] if is_video else 0
         diff_mask = ds_cfg[f'diff_mask']
         length_as_class = ds_cfg[f'length_as_class']
+        bkg_as_class = ds_cfg[f'bkg_as_class']
         class_wise = ds_cfg[f'class_wise']
         instance_wise = ds_cfg[f'instance_wise']
         starts_2d = ds_cfg[f'starts_2d']
@@ -486,8 +488,15 @@ def ipsc_post_process(ds_cfg, task_cfg, model_cfg, training):
             elif diff_mask == 2:
                 rle_suffixes.append(f'dm2')
 
+            if bkg_as_class:
+                assert not diff_mask, "diff_mask is incompatible with bkg_as_class"
+                assert not starts_2d, "bkg_as_class and starts_2d cannot both be enabled"
+                rle_suffixes.append(f'bac')
+
             if starts_2d:
+                assert not bkg_as_class, "bkg_as_class and starts_2d cannot both be enabled"
                 rle_suffixes.append(f'2d')
+
             if shared_coord:
                 assert starts_2d, "shared_coord should only be used with 2D starts"
                 assert not length_as_class, "length_as_class cannot be used with shared_coord"
