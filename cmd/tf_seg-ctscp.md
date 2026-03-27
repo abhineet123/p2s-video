@@ -12,6 +12,7 @@
             - [rfm       @ p-640/r-1280_640/val](#rfm___p_640_r_1280_640_val_)
             - [cw       @ p-640/r-1280_640/val](#cw___p_640_r_1280_640_val_)
             - [lac       @ p-640/r-1280_640/val](#lac___p_640_r_1280_640_val_)
+            - [lac-bac       @ p-640/r-1280_640/val](#lac_bac___p_640_r_1280_640_val_)
             - [mlf-2       @ p-640/r-1280_640/val](#mlf_2___p_640_r_1280_640_val_)
 - [train       @ rfm-0](#train___rfm_0_)
     - [orig       @ train](#orig___trai_n_)
@@ -93,6 +94,11 @@ python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:r-1280_640:p-640:sub-5:
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:r-1280_640:p-640:sub-4:lac:chk-0:stats-2:vid-0
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:r-1280_640:p-640:sub-2:lac:chk-0:stats-2:vid-0
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:r-1280_640:p-640:sub-1:lac:chk-0:stats-2:vid-0
+<a id="lac_bac___p_640_r_1280_640_val_"></a>
+#### lac-bac       @ p-640/r-1280_640/val-->tf_seg-ctscp
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:r-1280_640:p-640:sub-8:bac:lac:chk-1:stats-1:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:r-1280_640:p-640:sub-4:bac:lac:chk-1:stats-1:vid-0
+python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:r-1280_640:p-640:sub-2:bac:lac:chk-1:stats-1:vid-0
 <a id="mlf_2___p_640_r_1280_640_val_"></a>
 #### mlf-2       @ p-640/r-1280_640/val-->tf_seg-ctscp
 python data/scripts/create_seg_tfrecord.py cfg=ctscp:val:r-1280_640:p-640:sub-8:lac:chk-0:stats-2:vid-0:mlf-2

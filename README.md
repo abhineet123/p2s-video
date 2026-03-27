@@ -200,7 +200,7 @@ Download [pretrained weights](https://huggingface.co/abhineet123/p2s-video/tree/
 
 ```
 mkdir ~/pix2seq/pretrained && cd ~/pix2seq/pretrained
-wget https://huggingface.co/abhineet123/p2s-video/blob/main/pretrained/resnet_640.zip
+wget https://huggingface.co/abhineet123/p2s-video/resolve/main/pretrained/resnet_640.zip
 unzip resnet_640.zip
 ```
 Most of the pretrained weights (except the [video swin transformer ones](https://github.com/SwinTransformer/Video-Swin-Transformer#kinetics-600)) should also be available in the [official pix2seq repo](https://github.com/google-research/pix2seq#coco-object-detection-fine-tuned-checkpoints).
@@ -316,10 +316,10 @@ Download our pre-formatted version of the [UA-DETRAC dataset](https://huggingfac
 ```
 mkdir /data/DETRAC/Images && cd /data/DETRAC/Images
 
-wget https://huggingface.co/datasets/abhineet123/ua_detrac/blob/main/ua_detrac_training_set.zip
+wget https://huggingface.co/datasets/abhineet123/ua_detrac/resolve/main/ua_detrac_training_set.zip
 unzip ua_detrac_training_set.zip
 
-wget https://huggingface.co/datasets/abhineet123/ua_detrac/blob/main/ua_detrac_test_set.zip
+wget https://huggingface.co/datasets/abhineet123/ua_detrac/resolve/main/ua_detrac_test_set.zip
 unzip ua_detrac_test_set.zip
 ```
 
@@ -372,7 +372,7 @@ This command requires that the [sample lists](https://huggingface.co/datasets/ab
 
 ```
 cd /data/DETRAC
-wget https://huggingface.co/datasets/abhineet123/ua_detrac/blob/main/detrac_80_per_seq_random_len_2.zip
+wget https://huggingface.co/datasets/abhineet123/ua_detrac/resolve/main/detrac_80_per_seq_random_len_2.zip
 unzip detrac_80_per_seq_random_len_2.zip
 
 ```
@@ -470,7 +470,7 @@ Each model archive should be extracted in the `~/pix2seq` while maintaining the 
 For example:
 ```
 cd ~/pix2seq
-wget https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/late_stage/log_seg_resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb.zip
+wget https://huggingface.co/abhineet123/p2s-video/resolve/main/IPSC/late_stage/log_seg_resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb.zip
 unzip log_seg_resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb.zip
 ```
 This will extract the checkpoints to `~/pix2seq/log/seg/resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb/`.
@@ -479,20 +479,20 @@ This will extract the checkpoints to `~/pix2seq/log/seg/resnet_640_resize_2560-5
 ## Semantic Segmentation
 <a id="aris_datase_t_"></a>
 ### ARIS dataset
-- [32 training images](https://huggingface.co/abhineet123/p2s-video/blob/main/ARIS/log_seg_resnet_1024_resize_1280-0_31-1024_1024-64_256-rot_15_345_16-flip-sub_8-lac-617-batch_4-seq3k.zip)
-- [24 training images](https://huggingface.co/abhineet123/p2s-video/blob/main/ARIS/log_seg_resnet_640_0_23-640_640-64_256-rot_15_345_8-flip-sub_8-lac-617-batch_12-seq1k_d3_260315_160611.zip)
-- [16 training images](https://huggingface.co/abhineet123/p2s-video/blob/main/ARIS/log_seg_resnet_640_0_15-640_640-64_256-rot_15_345_8-flip-sub_8-lac-617-batch_12-seq1k_d3_260315_160437.zip)
-- [8 training images](https://huggingface.co/abhineet123/p2s-video/blob/main/ARIS/log_seg_resnet_640_0_7-640_640-64_256-rot_15_345_8-flip-sub_8-lac-617-batch_12-seq1k_d3_260315_160118.zip)
-- [4 training images](https://huggingface.co/abhineet123/p2s-video/blob/main/ARIS/log_seg_resnet_640_0_3-640_640-64_256-rot_15_345_8-flip-sub_8-lac-617-batch_12-seq1k.zip)
+- [32 training images](https://huggingface.co/abhineet123/p2s-video/resolve/main/ARIS/log_seg_resnet_1024_resize_1280-0_31-1024_1024-64_256-rot_15_345_16-flip-sub_8-lac-617-batch_4-seq3k.zip)
+- [24 training images](https://huggingface.co/abhineet123/p2s-video/resolve/main/ARIS/log_seg_resnet_640_0_23-640_640-64_256-rot_15_345_8-flip-sub_8-lac-617-batch_12-seq1k_d3_260315_160611.zip)
+- [16 training images](https://huggingface.co/abhineet123/p2s-video/resolve/main/ARIS/log_seg_resnet_640_0_15-640_640-64_256-rot_15_345_8-flip-sub_8-lac-617-batch_12-seq1k_d3_260315_160437.zip)
+- [8 training images](https://huggingface.co/abhineet123/p2s-video/resolve/main/ARIS/log_seg_resnet_640_0_7-640_640-64_256-rot_15_345_8-flip-sub_8-lac-617-batch_12-seq1k_d3_260315_160118.zip)
+- [4 training images](https://huggingface.co/abhineet123/p2s-video/resolve/main/ARIS/log_seg_resnet_640_0_3-640_640-64_256-rot_15_345_8-flip-sub_8-lac-617-batch_12-seq1k.zip)
 
 <a id="ipsc_datase_t_"></a>
 ### IPSC dataset
 - early stage training
-    - [static segmentation](https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/early_stage/log_seg_resnet_640_resize_640-16_53-640_640-640_640-rot_15_345_4-flip-sub_2-2d-lac-batch_8-seq3k.zip)
-    - [video segmentation](https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/early_stage/log_video_seg_resnet_640_resize_2560-16_53-640_640-640_640-length-8-stride-1-sub_8-tac-mc-batch_4-seq3k.zip)
+    - [static segmentation](https://huggingface.co/abhineet123/p2s-video/resolve/main/IPSC/early_stage/log_seg_resnet_640_resize_640-16_53-640_640-640_640-rot_15_345_4-flip-sub_2-2d-lac-batch_8-seq3k.zip)
+    - [video segmentation](https://huggingface.co/abhineet123/p2s-video/resolve/main/IPSC/early_stage/log_video_seg_resnet_640_resize_2560-16_53-640_640-640_640-length-8-stride-1-sub_8-tac-mc-batch_4-seq3k.zip)
 - late stage training
-    - [static segmentation](https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/late_stage/log_seg_resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb.zip)
-    - [video segmentation](https://huggingface.co/abhineet123/p2s-video/blob/main/IPSC/late_stage/log_video_seg_resnet_640_resize_2560-54_126-640_640-640_640-length-8-stride-1-sub_8-tac-mc-batch_8-voc15-seq3k-fbb.zip)
+    - [static segmentation](https://huggingface.co/abhineet123/p2s-video/resolve/main/IPSC/late_stage/log_seg_resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb.zip)
+    - [video segmentation](https://huggingface.co/abhineet123/p2s-video/resolve/main/IPSC/late_stage/log_video_seg_resnet_640_resize_2560-54_126-640_640-640_640-length-8-stride-1-sub_8-tac-mc-batch_8-voc15-seq3k-fbb.zip)
     
 <a id="object_detectio_n_"></a>
 ## Object Detection
@@ -505,7 +505,7 @@ This will extract the checkpoints to `~/pix2seq/log/seg/resnet_640_resize_2560-5
     - [N=3](https://huggingface.co/abhineet123/p2s-video/resolve/main/DETRAC/log_video_resnet_640_detrac-length-3-stride-1-seq-0_59-batch_216-fbb-jtr-res_1280-seq640-self2-0.zip)
     - [N=4](https://huggingface.co/abhineet123/p2s-video/resolve/main/DETRAC/log_video_resnet_640_detrac-length-4-stride-1-seq-0_59-batch_160-fbb-jtr-res_1280-seq1k-zexg.zip)
 - Late Fusion
-    - [N=2](https://huggingface.co/abhineet123/p2s-video/blob/main/DETRAC/log_video_resnet_640_detrac-length-2-stride-1-seq-0_59-batch_256-fbb-jtr-res_1280-lfn-self2-0.zip)
-    - [N=3](https://huggingface.co/abhineet123/p2s-video/blob/main/DETRAC/log_video_resnet_640_detrac-length-3-stride-1-seq-0_59-batch_168-fbb-jtr-res_1280-lfn-seq640-self2-0.zip)
-    - [N=4](https://huggingface.co/abhineet123/p2s-video/blob/main/DETRAC/log_video_resnet_640_detrac-length-4-stride-1-seq-0_59-batch_96-fbb-jtr-res_1280-seq1k-lfn-zexg.zip)
+    - [N=2](https://huggingface.co/abhineet123/p2s-video/resolve/main/DETRAC/log_video_resnet_640_detrac-length-2-stride-1-seq-0_59-batch_256-fbb-jtr-res_1280-lfn-self2-0.zip)
+    - [N=3](https://huggingface.co/abhineet123/p2s-video/resolve/main/DETRAC/log_video_resnet_640_detrac-length-3-stride-1-seq-0_59-batch_168-fbb-jtr-res_1280-lfn-seq640-self2-0.zip)
+    - [N=4](https://huggingface.co/abhineet123/p2s-video/resolve/main/DETRAC/log_video_resnet_640_detrac-length-4-stride-1-seq-0_59-batch_96-fbb-jtr-res_1280-seq1k-lfn-zexg.zip)
 
