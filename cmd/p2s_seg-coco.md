@@ -21,6 +21,7 @@
             - [on-val       @ r-640-p-640-sub-8-lac-fbb/train](#on_val___r_640_p_640_sub_8_lac_fbb_trai_n_)
                 - [p9-oldest_first       @ on-val/r-640-p-640-sub-8-lac-fbb/train](#p9_oldest_first___on_val_r_640_p_640_sub_8_lac_fbb_train_)
     - [r-1280-p-640-sub-8-lac-fbb       @ train](#r_1280_p_640_sub_8_lac_fbb___trai_n_)
+    - [r-640-p-640-sub-5-bac-lac-fbb       @ train](#r_640_p_640_sub_5_bac_lac_fbb___trai_n_)
     - [r-1280-p-640-sub-4-lac-fbb       @ train](#r_1280_p_640_sub_4_lac_fbb___trai_n_)
     - [r-1280-p-640-sub-4-lac-end-100-fbb       @ train](#r_1280_p_640_sub_4_lac_end_100_fbb___trai_n_)
     - [r-1280-p-640-sub-4-mc-fbb       @ train](#r_1280_p_640_sub_4_mc_fbb___trai_n_)
@@ -139,6 +140,12 @@ CUDA_VISIBLE_DEVICES=0 NCCL_DEBUG=WARN NCCL_SOCKET_IFNAME==enp3s0 NCCL_P2P_DISAB
 CUDA_VISIBLE_DEVICES=1 NCCL_DEBUG=WARN NCCL_SOCKET_IFNAME==enp3s0 NCCL_P2P_DISABLE=1 python3 run.py --cfg=configs/config_seg.py  --j5=train,resnet-640,coco,seg-r-640:p-640:sub-8,batch-64,dbg-0,dyn-1,dist-2,ep-10000,pt-1,lac,seq2k,fbb,voc18,self2-1
 `dbg`
 CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=train,resnet-640,coco,seg-r-1280:p-640:sub-8,batch-2,dbg-0,dyn-1,dist-0,ep-10000,pt-1,lac,seq2k,voc18,fbb
+
+<a id="r_640_p_640_sub_5_bac_lac_fbb___trai_n_"></a>
+## r-640-p-640-sub-5-bac-lac-fbb       @ train-->p2s_seg-coco
+python3 run.py --cfg=configs/config_seg.py  --j5=train,resnet-640,coco,seg-r-640:p-640:sub-5,batch-64,dbg-0,dyn-1,dist-2,ep-10000,pt-1,bac,lac,seq2k,fbb,voc17b,zedg
+`dbg`
+CUDA_VISIBLE_DEVICES=0 python3 run.py --cfg=configs/config_seg.py  --j5=train,resnet-640,coco,seg-r-640:p-640:sub-5,batch-8,dbg-0,dyn-1,dist-0,ep-10000,pt-1,bac,lac,seq2k,fbb,voc17b
 
 <a id="r_1280_p_640_sub_4_lac_fbb___trai_n_"></a>
 ## r-1280-p-640-sub-4-lac-fbb       @ train-->p2s_seg-coco

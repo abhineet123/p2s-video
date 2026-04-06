@@ -4,9 +4,12 @@
     - [train-rfm       @ panopticapi](#train_rfm___panopticap_i_)
     - [val-rfm       @ panopticapi](#val_rfm___panopticap_i_)
         - [end-400       @ val-rfm/panopticapi](#end_400___val_rfm_panopticap_i_)
-- [train       @ rfm-0](#train___rfm_0_)
+- [train](#train_)
     - [r-640       @ train](#r_640___trai_n_)
         - [p-640       @ r-640/train](#p_640___r_640_trai_n_)
+            - [lac       @ p-640/r-640/train](#lac___p_640_r_640_trai_n_)
+            - [bac       @ p-640/r-640/train](#bac___p_640_r_640_trai_n_)
+            - [bac-lac       @ p-640/r-640/train](#bac_lac___p_640_r_640_trai_n_)
             - [end-100       @ p-640/r-640/train](#end_100___p_640_r_640_trai_n_)
             - [end-2000       @ p-640/r-640/train](#end_2000___p_640_r_640_trai_n_)
         - [p-0-aug       @ r-640/train](#p_0_aug___r_640_trai_n_)
@@ -19,6 +22,9 @@
 - [val       @ rfm-0](#val___rfm_0_)
     - [r-640       @ val](#r_640___va_l_)
         - [p-640       @ r-640/val](#p_640___r_640_va_l_)
+            - [lac       @ p-640/r-640/val](#lac___p_640_r_640_va_l_)
+            - [bac       @ p-640/r-640/val](#bac___p_640_r_640_va_l_)
+            - [bac-lac       @ p-640/r-640/val](#bac_lac___p_640_r_640_va_l_)
             - [end-1000       @ p-640/r-640/val](#end_1000___p_640_r_640_va_l_)
     - [r-1280       @ val](#r_1280___va_l_)
         - [p-640-sub-8       @ r-1280/val](#p_640_sub_8___r_1280_val_)
@@ -58,13 +64,25 @@ python data/scripts/create_seg_tfrecord.py cfg=coco:val:rfm
 ### end-400       @ val-rfm/panopticapi-->tf_seg-coco
 python data/scripts/create_seg_tfrecord.py cfg=coco:val:rfm:end-400
 
-<a id="train___rfm_0_"></a>
-# train       @ rfm-0-->tf_seg-coco
+<a id="train_"></a>
+# train
 <a id="r_640___trai_n_"></a>
 ## r-640       @ train-->tf_seg-coco
 <a id="p_640___r_640_trai_n_"></a>
 ### p-640       @ r-640/train-->tf_seg-coco
+<a id="lac___p_640_r_640_trai_n_"></a>
+#### lac       @ p-640/r-640/train-->tf_seg-coco
 python data/scripts/create_seg_tfrecord.py cfg=coco:r-640:p-640:sub-8:lac:chk-0
+<a id="bac___p_640_r_640_trai_n_"></a>
+#### bac       @ p-640/r-640/train-->tf_seg-coco
+python data/scripts/create_seg_tfrecord.py cfg=coco:r-640:p-640:sub-8:bac:chk-0:stats-2
+python data/scripts/create_seg_tfrecord.py cfg=coco:r-640:p-640:sub-5:bac:chk-0:stats-2
+python data/scripts/create_seg_tfrecord.py cfg=coco:r-640:p-640:sub-4:bac:chk-0:stats-2
+<a id="bac_lac___p_640_r_640_trai_n_"></a>
+#### bac-lac       @ p-640/r-640/train-->tf_seg-coco
+python data/scripts/create_seg_tfrecord.py cfg=coco:r-640:p-640:sub-8:bac:lac:chk-0:stats-2
+python data/scripts/create_seg_tfrecord.py cfg=coco:r-640:p-640:sub-5:bac:lac:chk-0
+python data/scripts/create_seg_tfrecord.py cfg=coco:r-640:p-640:sub-4:bac:lac:chk-0:stats-2
 <a id="end_100___p_640_r_640_trai_n_"></a>
 #### end-100       @ p-640/r-640/train-->tf_seg-coco
 python data/scripts/create_seg_tfrecord.py cfg=coco:r-640:p-640:sub-8:lac:end-100
@@ -103,9 +121,19 @@ python data/scripts/create_seg_tfrecord.py cfg=coco:r-1280:p-640:sub-4:end-600
 ## r-640       @ val-->tf_seg-coco
 <a id="p_640___r_640_va_l_"></a>
 ### p-640       @ r-640/val-->tf_seg-coco
+<a id="lac___p_640_r_640_va_l_"></a>
+#### lac       @ p-640/r-640/val-->tf_seg-coco
 python data/scripts/create_seg_tfrecord.py cfg=coco:val:r-640:p-640:sub-8:lac:chk-0
 `dbg`
 python data/scripts/create_seg_tfrecord.py cfg=coco:val:r-640:p-640:sub-8:lac:end-100
+<a id="bac___p_640_r_640_va_l_"></a>
+#### bac       @ p-640/r-640/val-->tf_seg-coco
+python data/scripts/create_seg_tfrecord.py cfg=coco:val:r-640:p-640:sub-8:bac:chk-0:stats-2
+python data/scripts/create_seg_tfrecord.py cfg=coco:val:r-640:p-640:sub-4:bac:chk-0:stats-2
+<a id="bac_lac___p_640_r_640_va_l_"></a>
+#### bac-lac       @ p-640/r-640/val-->tf_seg-coco
+python data/scripts/create_seg_tfrecord.py cfg=coco:val:r-640:p-640:sub-8:bac:lac:chk-0:stats-2
+python data/scripts/create_seg_tfrecord.py cfg=coco:val:r-640:p-640:sub-4:bac:lac:chk-0:stats-2
 <a id="end_1000___p_640_r_640_va_l_"></a>
 #### end-1000       @ p-640/r-640/val-->tf_seg-coco
 python data/scripts/create_seg_tfrecord.py cfg=coco:val:r-640:p-640:sub-8:lac:end-1000

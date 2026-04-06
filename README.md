@@ -4,7 +4,7 @@ This is the official implementation of our extension of the [Pix2Seq language mo
 
 - [semantic segmentation paper](https://arxiv.org/abs/2602.21627) [[pdf]](docs/p2s_vid_sem_seg_paper.pdf)
 - [video detection paper](https://ieeexplore.ieee.org/document/11115031) [[pdf]](docs/p2s_vid_det_paper.pdf)
-- [phd dissertation](docs/p2s_vid_phd_thesis.pdf)
+- [phd dissertation](https://doi.org/10.7939/83480) [[pdf]](docs/p2s_vid_phd_thesis.pdf)
 
 # Table of Contents
 
