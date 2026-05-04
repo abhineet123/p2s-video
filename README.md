@@ -45,6 +45,7 @@ This is the official implementation of our extension of the [Pix2Seq language mo
     - [Semantic Segmentation](#semantic_segmentation_)
         - [ARIS dataset](#aris_datase_t_)
         - [IPSC dataset](#ipsc_datase_t_)
+        - [Cityscapes dataset](#cityscapes_datase_t_)
     - [Object Detection](#object_detectio_n_)
         - [UA-DETRAC dataset](#ua_detrac_datase_t_)
 
@@ -493,6 +494,10 @@ This will extract the checkpoints to `~/pix2seq/log/seg/resnet_640_resize_2560-5
 - late stage training
     - [static segmentation](https://huggingface.co/abhineet123/p2s-video/resolve/main/IPSC/late_stage/log_seg_resnet_640_resize_2560-54_126-640_640-160_320-rot_15_345_1-sub_8-lac-batch_72-fbb.zip)
     - [video segmentation](https://huggingface.co/abhineet123/p2s-video/resolve/main/IPSC/late_stage/log_video_seg_resnet_640_resize_2560-54_126-640_640-640_640-length-8-stride-1-sub_8-tac-mc-batch_8-voc15-seq3k-fbb.zip)
+
+<a id="cityscapes_datase_t_"></a>
+### Cityscapes dataset
+- [LAC I=640 S=80 V=8K L=2K B=80](https://huggingface.co/abhineet123/p2s-video/resolve/main/Cityscapes/log_seg_resnet_640_ctscp-train-resize_1280x640-640_640-640_640-sub_8-lac-batch_80-seq2k-voc8192-fbb-gdez.zip)
     
 <a id="object_detectio_n_"></a>
 ## Object Detection
